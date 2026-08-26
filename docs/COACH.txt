@@ -1,0 +1,100 @@
+# RL Coach — opskrift til din AI-assistent
+
+Denne fil er en komplet instruktion til en AI-assistent (Claude Code eller
+lignende) i at lave en personlig efterkamp-coachingrapport ud fra trackerens
+data. Sig fx til din AI: **"Læs COACH.md i tracker-mappen og lav min rapport."**
+Svar spilleren på spillerens eget sprog.
+
+Alt ligger i mappen ved siden af denne fil (herefter `<APP>`). Spillerens
+identitet står i `<APP>\profile.json` → `trackedPid` + `trackedName` — brug
+ALDRIG et hardcodet navn.
+
+## Grundregel: læs insights, genberegn ikke
+
+Metrik-motoren (RL Director) har allerede kørt hver kamp igennem, og **den ejer
+alle tal**. Regner du selv efter fra rå data, risikerer du at modsige boardet —
+og så mister spilleren tilliden til begge. Læs i denne rækkefølge:
+
+1. `<APP>\reports\session-*.json` — sessionsrapporter (nyeste = seneste).
+   Færdigberegnet: `wl`, `playlists` (W/L + mål/skud pr. playlist), `trends`
+   (sessionAvg mod baselineAvg pr. metrik), `strongest`/`weakest`, `tilt`
+   (W/L-sekvens, kolde starter `earlyConceded`, sene egne mål `lateOwn`,
+   stop-signal), `missions`, `packs`, `notes`.
+2. `<APP>\reports\*-debrief.json` — ét pr. kamp; `metrics[]` er evidenssporet
+   (værdi, baseline {mean,n}, delta) + de tre linjer spilleren så (ros/problem/
+   advice) + `match.myTeam`.
+3. `<APP>\profile.json` — EWMA-baselines pr. playlist = spillerens "normal".
+4. `<APP>\reports\weekly-*.json` — ugerapporter; `proof[]`-sektionen er den
+   ENESTE kilde til "virkede et fokus?" (dom `ikke målbart` betyder for lidt
+   data — ALDRIG "virkede ikke").
+5. Rå digests i `<APP>\matches\*.json` kun for ting motoren ikke måler
+   (fx træningsrunder — se nedenfor). Filer med `_`-præfiks er backfill uden
+   telemetri.
+
+## Metrikker
+
+`kickoff_team_ft, kickoff_self_ft, kickoff_self_speed, hit_power_avg,
+hit_power_max, off_touch_share, boost_low_share, boost_avg, touches_per_min,
+demo_diff` (+ bevægelsesmetrikker under opbygning). Højere er bedre — undtagen
+`boost_low_share` (tid under 15 boost: lavere er bedre). `goodness` er allerede
+retningskorrigeret. `demo_diff` sammenlignes ABSOLUT, aldrig i procent.
+
+## Ærlighedsregler (rapportens rygrad)
+
+- **Tal bærer altid deres subjekt og enhed i samme sætning** — "38 % mod
+  normalt 52 % i 1v1", aldrig nøgne tal.
+- **Score vises altid "dig–dem"**: brug `match.myTeam` (0 = første tal er dit,
+  1 = byt om). Gæt aldrig ud fra hvilket tal der er størst.
+- **Tider i filer/filnavne er UTC** — vis dem i lokal tid.
+- **Trends er PR. PLAYLIST** — bland aldrig 1v1/2v2/3v3-tal til ét mål.
+- Metrikker med `baseline.n < 10` er under opbygning — sig det i stedet for at
+  konkludere.
+- `advice: null` i en debrief er BEVIDST tavshed (rådet ville være en
+  gentagelse) — ikke en fejl.
+- Hastigheder er i feedets egne enheder — sammenlign kun spilleren mod sin
+  egen normal, aldrig mod opfundne benchmarks.
+- Ingen nye kampe siden sidst? Sig det ærligt.
+- Fokusområder tages fra rapportens `weakest`/`missions` — ikke dine egne
+  favoritter. Slut altid med ÉT måltal (brug `missions[0]`).
+
+## Gæster (19/8-2026)
+
+Klik en anden spillers række på boardet, og coachen følger ham: egen profil, session og
+rapporter i `guests/<id>/` (debriefs tagget `coachee.guest`, rapporter under
+`/guests/<id>/reports/`). Ejerens normaler, uge og rank røres ikke; klik egen række = hjem.
+
+En gæst dømmes fra KAMP 1 mod en **standard lagt på forhånd** (`seed-baseline.json`):
+trimmet gennemsnit pr. playlist over alle spillere i alle digests i `matches/` — ejer,
+medspillere og modstandere i de lobbyer ejeren faktisk spiller i (1.413 spiller-kampe
+19/8). Den er MÅLT, ikke et rank-benchmark, og glider over i gæstens egen normal med
+samme EWMA som alle andre. Hver flade siger "standarden"/"the standard" i stedet for
+"din normal" (`debrief.seeded`, `metrics[].baseline.seeded`, `report.seeded`) — citér det
+ordret; kald aldrig standarden "hans normal".
+
+## Træningsrunder (offline-digests)
+
+Digests med `mode: "offline"` er freeplay/træningspakker. Motoren analyserer
+dem bevidst ikke (de rører aldrig baselines), men de KAN opsummeres manuelt:
+`kickoffs[]` er reps med first-touch-hastighed, `hitEvents[]` (nyere digests)
+har vægurs-tidsstempler (`w`), og varigheden er `startedAt`→`endedAt`. OBS:
+spillet viser ingen score/tid i træningspakker — trackerens måling er den
+eneste. Sig aldrig "slå din score" om en pakke.
+
+## Træningsbaner
+
+Brug `report.packs` når sessionsrapporten har valgt dem (motoren har lavet
+kobling + rotation). Supplér fra katalogerne i `<APP>\director\`:
+`pack-catalog.json` (77 ratede baner; ratings /50 er forfatterens egne),
+`pack-catalog-prejump.json` (2.357 baner; difficulty = ranknavn, filtrér på
+spillerens niveau ±1 tier, sortér på likes) og `pack-catalog-variety.json`
+(afveksling — max ÉN pr. rapport, aldrig i stedet for den målte kobling).
+**Opfind ALDRIG en pack-kode.** Hver anbefaling kobles eksplicit til en målt
+svaghed eller et erklæret mål — og sig hvilken af delene det er.
+
+## Visuel rapport (afslutning)
+
+Afslut gerne med en HTML-udgave af rapporten: mørk, teknisk, "geek-
+professionel". `ds.css` + `icons.svg` ligger i mappen og må genbruges. Vis
+tallene som tabeller/bjælker med spillerens normal som referencelinje — og
+overhold stadig alle ærlighedsregler i det visuelle (en søjle uden baseline-
+reference er et nøgent tal).

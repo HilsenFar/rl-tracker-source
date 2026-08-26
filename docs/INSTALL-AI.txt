@@ -1,0 +1,113 @@
+# RL Live Tracker — installation (skrevet til din AI-assistent)
+
+Denne fil kan gives direkte til en AI-assistent (fx i en WSL/terminal-session):
+**"Læs INSTALL-AI.md og installér trackeren."** Menneske? Følg samme trin —
+de tre KRITISKE trin står i kassen nederst.
+
+## Fakta din AI skal kende
+
+- Appen er en **Windows-app** (server-exe + HTML). Kører du AI'en i WSL, ligger
+  Windows-filsystemet på `/mnt/c/...` — men serveren SKAL køre i Windows
+  (dobbeltklik `Start-RL-Tracker.bat` eller kør exe'en), ikke i WSL, da den
+  skal nå spillets TCP-feed og skrive i sin egen mappe.
+- Ingen installation i systemet: mappen ER appen. Ingen afhængigheder
+  (exe'en er selvstændig; alternativt Node 18+ og `node server.js`).
+- Serveren lytter kun på denne maskine (127.0.0.1:8341).
+
+## Trin
+
+1. **Udpak zippen** til en mappe med skriverettigheder (fx `C:\RL-Tracker\`).
+   IKKE i `Program Files`.
+2. **Aktivér spillets Stats API** (én gang, KRITISK — uden dette: ingen live-data):
+   - Luk Rocket League helt.
+   - Åbn `<spil-mappe>\TAGame\Config\DefaultStatsAPI.ini`
+     - Epic: `...\Epic Games\rocketleague\TAGame\Config\`
+     - Steam: `...\Steam\steamapps\common\rocketleague\TAGame\Config\`
+   - Sæt `PacketSendRate=120` (0 betyder slået fra; 120 er spillets eget loft
+     og det bevægelses-metrikkerne er kalibreret til). `Port` skal blive på 49123.
+   - Start spillet igen.
+   - NB: Spilopdateringer nulstiller af og til filen til `PacketSendRate=0`.
+     Trackeren vogter selv over det (finder ini'en via Epic-launcherens
+     manifester, retter raten og siger til på boardet hvis spillet skal
+     genstartes). Ligger spillet et utraditionelt sted, kan vagten peges med
+     miljøvariablen `STATSAPI_INI`.
+   - Trackeren tjekker én gang i døgnet om der findes en nyere version
+     (github.com/HilsenFar/rl-tracker-releases — ét anonymt API-kald, ingen
+     spillerdata) og viser et stille kort på boardet. Slås fra med
+     `"updateCheck": false` i `director-ai.json` eller `UPDATE_CHECK=0`.
+3. **Start trackeren**: dobbeltklik `Start-RL-Tracker.bat` (starter serveren og
+   åbner `http://localhost:8341/`).
+4. **Klik på dit eget navn** i spillerlisten under din første kamp — så ved
+   coachen hvem du er. Uden dette trin: board virker, coach er tavs.
+5. *(Valgfrit)* **AI-stemme på coachen**: åbn `director-ai.json` (oprettes ved
+   første start) — se README-afsnittet "Coachen (RL Director)". Ollama kræver
+   ingen nøgle: `"provider": "ollama"` + `ollama pull gemma3:12b`.
+6. *(Valgfrit)* Skrivebordsgenvej: `Install-Shortcut.bat`.
+
+## Verifikation (AI: kør disse tjek)
+
+- `http://localhost:8341/` svarer 200.
+- Efter første kamp: `http://localhost:8341/api/debrief` returnerer et debrief
+  (ikke `null`), og der ligger en fil i `matches\`.
+- Ser du "ingen sporet spiller valgt endnu" i server.log → trin 4 mangler.
+- Kommer der ingen kampe i `matches\` → trin 2 mangler (tjek ini-filen igen;
+  spillet skal genstartes efter ændringen).
+
+## Testversion: automatisk feedback
+
+Denne build er en test-udgave. Ligger der en `feedback.json` i mappen, deler
+den automatisk kamp-digests og rapporter med udvikleren i baggrunden (privat
+GitHub-repo) — **aldrig API-nøgler, aldrig dine personlige kamp-mærker
+medmindre du aktivt har sagt ja** (`includeLabels`). Vil du ikke dele: slet
+`feedback.json`, færdig. Manuel deling findes også: `Export-Feedback.bat`.
+
+## Opgradering: importér kampe fra en ældre version
+
+Har du en tidligere udgave af trackeren, er dine gamle kampe det eneste der er
+værd at flytte — og de kan køres gennem den NYE motor:
+
+1. Kopiér hele `matches\`-mappen fra den gamle installation ind i den nye
+   (læg filerne sammen med eventuelle nye).
+2. Kopiér `rank-cache.json` og `director-ai.json` hvis de findes (din
+   rank-nøgle + AI-opsætning — gamle formater migreres automatisk).
+3. Start trackeren og **klik på dit eget navn** (vigtigt: gamle versioner
+   kunne have en forkert forudindstillet spiller).
+4. Backfill (kræver Node 18+): kør fra app-mappen
+   `node director\replay.js .`
+   — hver gammel kamp foldes ind i dine baselines gennem den nuværende
+   metrik-motor, og der skrives debrief-rapporter for dem. Kørslen er
+   idempotent (allerede-foldede kampe springes over), så den kan køres igen.
+
+Kopiér IKKE gamle `profile.json`/`reports\` — replay genopbygger baselines
+renere end en gammel profil (og undgår gamle versioners fejl). Bemærk:
+metrikker der ikke fandtes dengang (bevægelse, boost-tidslinje, hitEvents)
+kan ikke genskabes for gamle kampe — de findes kun fremad.
+
+## Egne mærkat-knapper (valgfrit)
+
+Efter hver kamp spørger coachen "Hvordan føltes den?" med ét-tryks-knapper.
+Du kan tilføje dine egne: opret `labels-custom.json` i tracker-mappen, fx
+
+```json
+[{"id":"sofie","text":"Sofie"}]
+```
+
+— og genstart trackeren. Knappen dukker op fra næste kamp. Brug dem til de
+udefrakommende faktorer kun DU kender (afbrydelser, træthed, hvad som helst) —
+det er dit eget ordforråd, og coachen lærer af sammenhængen med tallene.
+
+## Coach-rapporter med din egen AI
+
+Se `COACH.md` — en komplet opskrift din AI kan følge for dybe, personlige
+efterkamp-rapporter ud fra dine egne data ("Læs COACH.md og lav min rapport").
+
+```
++=====================================================================+
+|                DE TRE TRIN DER SKAL VÆRE PÅ PLADS                   |
+|                                                                     |
+|  1) DefaultStatsAPI.ini  ->  PacketSendRate=120  (genstart spillet) |
+|  2) Start-RL-Tracker.bat ->  åbner localhost:8341                   |
+|  3) KLIK PÅ DIT EGET NAVN i spillerlisten (én gang)                 |
+|                                                                     |
++=====================================================================+
+```

@@ -1,0 +1,719 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   GITATO DESIGN SYSTEM v2
+   One file. No build step. Drop it in before a surface's own styles:
+
+       <link rel="stylesheet" href="ds.css">
+
+   WHY v2 EXISTS
+   v1 was a *mirror* of what each site already did — five competing palettes
+   written down as .theme-* scopes. Nobody imported it, so the portfolio drifted:
+   ten separate :root blocks, --line at .16 on one surface and .18 on another,
+   MedieStudio on a stock VSCode blue, the RL tracker on GitHub's palette, and
+   zero :focus-visible anywhere. v2 is prescriptive instead: one substrate, one
+   ink ramp, one set of signals, and per-product themes that turn exactly five
+   knobs.
+
+   THE MODEL — "machined signage"
+   The page is an anodised near-black steel panel. Controls are plates cut and
+   fixed to it. Neon is not a box-shadow smeared under a box; it is an *emissive
+   plate*: a lit face carrying dark stencil text, the way real illuminated
+   signage works.
+
+   That is a design choice with a measurement behind it. White text fails WCAG AA
+   on every one of our signal colours (best case 3.86:1 on violet). Dark text
+   passes on every one (worst case 5.17:1 on violet). Lit-face-with-dark-text is
+   both the more authentic look and the only accessible one.
+
+   THE RULE THAT KEEPS IT HONEST
+   A raw signal colour (--sig-cyan) may fill a plate, draw a rule, or fill a
+   glyph. It may never carry text. Text uses the -ink variant, or --ink-on-lit
+   when it sits on a lit face. Follow that and no text in the system can drop
+   below 4.5:1, whatever surface it lands on.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Fonts ──────────────────────────────────────────────────────────────────
+   Orbitron  logotype only. It is the brand mark and it stays.
+   Chakra Petch  UI, headings, HUD, numerals. Squared and technical, and far
+                 more legible than Orbitron below ~20px.
+   Barlow  body copy. Rajdhani (v1's choice) is a condensed face; it is fine for
+           a HUD and genuinely hard work for a paragraph.
+   Loaded from Google Fonts, matching how beatsurfer already does it — that was
+   the one surface where the brand typography actually reached the screen.
+   ─────────────────────────────────────────────────────────────────────────── */
+@import url("https://fonts.googleapis.com/css2?family=Orbitron:wght@700;800;900&family=Chakra+Petch:wght@500;600;700&family=Barlow:wght@400;500;600;700&display=swap");
+
+:root {
+  /* ═══ SUBSTRATE ══════════════════════════════════════════════════════════
+     Cool steel. Hue ~250, chroma under .02 — neutral enough that any signal
+     colour reads as light on it rather than as a second hue competing with it. */
+  --gt-void:  #06070A;   /* behind gameplay canvas, letterboxing            */
+  --gt-sub-0: #0A0C10;   /* page background                                 */
+  --gt-sub-1: #0F1218;   /* section bands, sunken wells                     */
+
+  --gt-pl-1:  #14181F;   /* panel / card face                               */
+  --gt-pl-2:  #1B2029;   /* control fill, raised plate                      */
+  --gt-pl-3:  #232A35;   /* hover fill  ← worst-case background for contrast */
+  --gt-pl-4:  #2C3441;   /* active / pressed fill                           */
+
+  /* ═══ EDGES ══════════════════════════════════════════════════════════════
+     Opaque, not rgba. v1's translucent hairlines drifted between surfaces and
+     changed value depending on what happened to be underneath them. */
+  --gt-edge-hair:  #333C4B;   /* 1.76:1 on sub-0 — quiet divider            */
+  --gt-edge-bezel: #4A5568;   /* 2.60:1 — a plate's outer edge              */
+  --gt-edge-lip:   #59647A;   /* 3.29:1 — top-lit machined edge             */
+  --gt-lip:  rgba(146, 164, 196, .22);  /* 1px inset highlight, top          */
+  --gt-occl: rgba(0, 0, 0, .62);        /* 1px inset shadow, bottom          */
+
+  /* ═══ INK ════════════════════════════════════════════════════════════════
+     Measured against --gt-pl-3, the lightest surface any text can land on, so
+     these are worst-case numbers, not best-case ones. */
+  --gt-ink-1: #E8ECF2;   /* primary          12.18:1 on pl-3  AAA           */
+  --gt-ink-2: #B9C2CF;   /* body             7.84:1  on pl-3  AAA           */
+  --gt-ink-3: #909AA9;   /* meta, captions   5.08:1  on pl-3  AA            */
+  --gt-ink-4: #6B7484;   /* NEVER TEXT       3.06:1 — dividers, inert glyphs */
+  --gt-ink-on-lit: #07090C;  /* the only colour allowed on a lit face       */
+
+  /* ═══ SIGNALS ════════════════════════════════════════════════════════════
+     Three roles each:
+       --x       raw emissive fill. Plates, rules, glyph fills. NEVER text.
+       --x-ink   the text-safe variant. The only one you may set on color:.
+       --x-dk    the plate's own bezel — a darkened rim so a lit plate reads as
+                 an object rather than a coloured rectangle. */
+  --gt-cyan:    #19E0FF;  --gt-cyan-ink:    #5FEBFF;  --gt-cyan-dk:    #0A7E93;
+  --gt-teal:    #00E6C8;  --gt-teal-ink:    #58F2DF;  --gt-teal-dk:    #058274;
+  --gt-violet:  #7C6CFF;  --gt-violet-ink:  #A99BFF;  --gt-violet-dk:  #443A99;
+  --gt-plum:    #B44DFF;  --gt-plum-ink:    #CE8CFF;  --gt-plum-dk:    #662A94;
+  --gt-magenta: #FF2BD6;  --gt-magenta-ink: #FF7BE6;  --gt-magenta-dk: #93187B;
+  --gt-red:     #FF2B4E;  --gt-red-ink:     #FF8494;  --gt-red-dk:     #931A2E;
+  --gt-amber:   #FF8A1F;  --gt-amber-ink:   #FFA95C;  --gt-amber-dk:   #944D0F;
+  --gt-yellow:  #FFC53D;  --gt-yellow-ink:  #FFD470;  --gt-yellow-dk:  #8F6C18;
+  --gt-green:   #35E08A;  --gt-green-ink:   #6FEEAE;  --gt-green-dk:   #197F4C;
+  --gt-gold:    #F5C451;  --gt-gold-ink:    #F5C451;  --gt-gold-dk:    #8A6D26;
+  --gt-sky:     #5BD0F0;  --gt-sky-ink:     #8FE0F6;  --gt-sky-dk:     #1E6F87;
+  --gt-pink:    #FF7BB0;  --gt-pink-ink:    #FFA6C9;  --gt-pink-dk:    #A32E5F;
+
+  /* ═══ SEMANTIC STATE ═════════════════════════════════════════════════════
+     Product-independent. A surface retints --gt-sig, never these. */
+  --gt-danger:  var(--gt-red);     --gt-danger-ink:  var(--gt-red-ink);
+  --gt-warn:    var(--gt-amber);   --gt-warn-ink:    var(--gt-amber-ink);
+  --gt-caution: var(--gt-yellow);  --gt-caution-ink: var(--gt-yellow-ink);
+  --gt-ok:      var(--gt-green);   --gt-ok-ink:      var(--gt-green-ink);
+  --gt-info:    var(--gt-cyan);    --gt-info-ink:    var(--gt-cyan-ink);
+  --gt-inert:   var(--gt-edge-bezel); --gt-inert-ink: var(--gt-ink-3);
+
+  /* ═══ PRODUCT SIGNAL ═════════════════════════════════════════════════════
+     The five knobs a theme turns. Everything else is shared. */
+  --gt-sig:     var(--gt-cyan);
+  --gt-sig-ink: var(--gt-cyan-ink);
+  --gt-sig-dk:  var(--gt-cyan-dk);
+  --gt-sig-2:     var(--gt-magenta);
+  --gt-sig-2-ink: var(--gt-magenta-ink);
+
+  /* ═══ TYPOGRAPHY ═════════════════════════════════════════════════════════ */
+  --gt-font-logo: "Orbitron", "Chakra Petch", system-ui, sans-serif;
+  --gt-font-ui:   "Chakra Petch", "Segoe UI", system-ui, sans-serif;
+  --gt-font-body: "Barlow", "Segoe UI", system-ui, sans-serif;
+  --gt-font-mono: ui-monospace, "JetBrains Mono", Consolas, monospace;
+
+  /* Modular scale, ratio 1.2, fluid between 375px and 1440px viewports.
+     v1 had 30+ ad-hoc px values on beatsurfer alone and no scale at all. */
+  --gt-t-xs:   clamp(10.5px, 0.18vw + 9.8px,  11.5px);
+  --gt-t-sm:   clamp(12px,   0.22vw + 11.2px, 13px);
+  --gt-t-base: clamp(14px,   0.28vw + 13px,   15.5px);
+  --gt-t-md:   clamp(16px,   0.38vw + 14.6px, 18px);
+  --gt-t-lg:   clamp(19px,   0.66vw + 16.5px, 23px);
+  --gt-t-xl:   clamp(23px,   1.15vw + 18.7px, 30px);
+  --gt-t-2xl:  clamp(28px,   2.10vw + 20.1px, 40px);
+  --gt-t-3xl:  clamp(34px,   3.60vw + 20.5px, 56px);
+  --gt-t-4xl:  clamp(42px,   6.40vw + 18.0px, 84px);
+  --gt-t-hero: clamp(52px,  10.00vw + 14.5px, 118px);
+
+  /* Tracking in em so it scales with size. v1 set it in px on the game, which
+     meant the same 3px gap on a 12px label and a 180px rank letter.
+
+     The curve falls MONOTONICALLY as size rises. Small caps need air to stay
+     legible; large type does not, and generous tracking on display sizes is
+     precisely what made the old heroes look amateurish — .16em on a 108px
+     headline is 17px of gap between every pair of letters. The logotype is the
+     one exception: wide tracking is the brand signature, so it keeps more. */
+  --gt-track-tag:   .30em;   /* 11px micro-caps, taglines   */
+  --gt-track-label: .16em;   /* 11-12px labels              */
+  --gt-track-btn:   .13em;   /* 13px buttons                */
+  --gt-track-logo:  .12em;   /* logotype — brand signature  */
+  --gt-track-head:  .08em;   /* 19-30px headings            */
+  --gt-track-hero:  .05em;   /* 52-118px display            */
+
+  --gt-lh-tight: 1.05;
+  --gt-lh-head:  1.2;
+  --gt-lh-body:  1.62;
+
+  /* ═══ SPACE ══════════════════════════════════════════════════════════════ */
+  --gt-s-1: 4px;   --gt-s-2: 8px;   --gt-s-3: 12px;  --gt-s-4: 16px;
+  --gt-s-5: 22px;  --gt-s-6: 30px;  --gt-s-7: 42px;  --gt-s-8: 60px;
+  --gt-s-9: 84px;
+
+  /* ═══ RADIUS ═════════════════════════════════════════════════════════════
+     Deliberately tight. Machined plates have small radii; the portfolio had 13
+     different values on Hector alone. Inner radius = outer minus padding, so
+     nested corners stay concentric. */
+  --gt-r-1: 2px;   /* chips, tags, inner elements       */
+  --gt-r-2: 3px;   /* buttons, inputs                   */
+  --gt-r-3: 5px;   /* panels, cards                     */
+  --gt-r-4: 8px;   /* modals, large containers          */
+  --gt-r-cut: 9px; /* corner-cut size on emissive plates */
+  --gt-r-pill: 999px;
+
+  /* ═══ ELEVATION ══════════════════════════════════════════════════════════
+     Layered, and lit from above. v1 used `0 0 Npx <one colour>` 20+ times, which
+     is why panels read as stickers on a flat backdrop instead of objects in a
+     space. Each level here is: top lip + bottom occlusion + contact + ambient.
+
+     IMPORTANT — measured, not assumed: on a near-black substrate a drop shadow
+     does almost nothing. Rendered side by side, e-0 through e-4 as shadows alone
+     were indistinguishable. On dark UI, elevation is carried by SURFACE LIGHTNESS
+     and the top lip; the shadow only sells the contact edge. Use the .gt-elev-*
+     utilities below, which raise the fill as well — the shadow tokens on their
+     own are not enough and should be treated as one ingredient, not the recipe. */
+  --gt-e-0: inset 0 1px 0 var(--gt-lip),
+            inset 0 -1px 0 var(--gt-occl);
+  --gt-e-1: inset 0 1px 0 var(--gt-lip),
+            inset 0 -1px 0 var(--gt-occl),
+            0 1px 2px rgba(0, 0, 0, .55);
+  --gt-e-2: inset 0 1px 0 var(--gt-lip),
+            0 2px 4px rgba(0, 0, 0, .5),
+            0 8px 20px -10px rgba(0, 0, 0, .85);
+  --gt-e-3: inset 0 1px 0 var(--gt-lip),
+            0 4px 8px rgba(0, 0, 0, .45),
+            0 18px 44px -18px rgba(0, 0, 0, .9);
+  --gt-e-4: inset 0 1px 0 var(--gt-lip),
+            0 8px 16px rgba(0, 0, 0, .45),
+            0 34px 80px -28px rgba(0, 0, 0, .95);
+
+  /* Bloom is declared below, NOT here — see the note under the theme block. */
+
+  /* ═══ HAZARD & TEXTURE ═══════════════════════════════════════════════════ */
+  --gt-hz-pitch: 18px;
+  --gt-hz-caution: repeating-linear-gradient(135deg,
+      var(--gt-yellow) 0 calc(var(--gt-hz-pitch) / 2),
+      #101319 calc(var(--gt-hz-pitch) / 2) var(--gt-hz-pitch));
+  --gt-hz-danger: repeating-linear-gradient(135deg,
+      var(--gt-red) 0 calc(var(--gt-hz-pitch) / 2),
+      #101319 calc(var(--gt-hz-pitch) / 2) var(--gt-hz-pitch));
+  --gt-hz-inert: repeating-linear-gradient(135deg,
+      var(--gt-edge-hair) 0 calc(var(--gt-hz-pitch) / 2),
+      transparent calc(var(--gt-hz-pitch) / 2) var(--gt-hz-pitch));
+
+  /* ═══ PATTERN CHANNEL ════════════════════════════════════════════════════
+     For charts, meters and team colours, i.e. anywhere several series sit side
+     by side and colour alone has to tell them apart.
+
+     Measured: order the signal colours so each new series is as far from the
+     others in luminance as possible, and the smallest gap between them is
+       2 series  ΔL 0.385   colour alone is plenty
+       3 series  ΔL 0.173   colour alone is enough
+       4 series  ΔL 0.048   NOT ENOUGH
+     From four series up, a second channel is REQUIRED, not encouraged. Below
+     ΔL 0.05 the pair is indistinguishable to a deuteranope — which is exactly
+     the state the RL tracker shipped in: #58A6FF blue against #F0883E orange
+     on 4px-tall meters, the single worst pairing for red-green colour blindness. */
+  --gt-pat-hatch-a: repeating-linear-gradient(45deg,
+      rgba(255,255,255,.30) 0 2px, transparent 2px 5px);
+  --gt-pat-hatch-b: repeating-linear-gradient(-45deg,
+      rgba(255,255,255,.30) 0 2px, transparent 2px 5px);
+  --gt-pat-dot: radial-gradient(rgba(255,255,255,.34) .9px, transparent .9px) 0 0 / 4px 4px;
+  --gt-pat-grid: repeating-linear-gradient(0deg,
+      rgba(255,255,255,.22) 0 1px, transparent 1px 4px);
+
+  /* Film grain, baked to a data URI so it costs one decode and then tiles.
+     It MUST be composited with a blend mode — painted straight on it just lays
+     flat grey over the page and destroys the black. Measured, not guessed. */
+  --gt-grain: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='140'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/><feColorMatrix type='saturate' values='0'/></filter><rect width='140' height='140' filter='url(%23n)' opacity='0.5'/></svg>");
+  --gt-grain-opacity: .10;
+  --gt-vignette: radial-gradient(125% 95% at 50% 30%, transparent 46%, rgba(2, 3, 8, .55) 100%);
+
+  /* ═══ MOTION ═════════════════════════════════════════════════════════════
+     Real curves. v1 used bare `ease` everywhere with nine ad-hoc durations. */
+  --gt-ease-out:   cubic-bezier(.22, .68, .32, 1);      /* things arriving   */
+  --gt-ease-in:    cubic-bezier(.55, .06, .68, .19);    /* things leaving    */
+  --gt-ease-snap:  cubic-bezier(.2, .9, .28, 1.06);     /* press feedback    */
+  --gt-ease-soft:  cubic-bezier(.4, 0, .2, 1);          /* size/colour       */
+  --gt-d-1: 90ms;    /* press, tint                     */
+  --gt-d-2: 150ms;   /* hover                           */
+  --gt-d-3: 240ms;   /* card lift, panel reveal         */
+  --gt-d-4: 380ms;   /* screen transitions              */
+
+  /* ═══ FOCUS ══════════════════════════════════════════════════════════════
+     Two-tone so it stays visible on a dark plate AND on a lit one. There are
+     currently zero :focus-visible rules in the entire portfolio; this is the
+     single biggest accessibility gap v2 closes. */
+  --gt-focus-ink: #FFFFFF;
+  --gt-focus-gap: var(--gt-sub-0);
+  --gt-focus-ring: 0 0 0 2px var(--gt-focus-gap), 0 0 0 4px var(--gt-focus-ink);
+
+  /* ═══ LAYOUT ═════════════════════════════════════════════════════════════ */
+  --gt-wrap:      1120px;
+  --gt-wrap-text: 68ch;
+  --gt-wrap-narrow: 620px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   PRODUCT THEMES
+   Five knobs. Substrate, ink, edges, radii, motion and type are untouched —
+   that shared floor is what stops addson and the RL tracker from reading as
+   other people's software.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.gt-hub, [data-gt="hub"] {
+  --gt-sig: var(--gt-violet); --gt-sig-ink: var(--gt-violet-ink); --gt-sig-dk: var(--gt-violet-dk);
+  --gt-sig-2: var(--gt-red);  --gt-sig-2-ink: var(--gt-red-ink);
+}
+.gt-game, [data-gt="game"] {
+  --gt-sig: var(--gt-cyan);   --gt-sig-ink: var(--gt-cyan-ink);   --gt-sig-dk: var(--gt-cyan-dk);
+  --gt-sig-2: var(--gt-magenta); --gt-sig-2-ink: var(--gt-magenta-ink);
+}
+.gt-rts, [data-gt="rts"] {
+  --gt-sig: var(--gt-teal);   --gt-sig-ink: var(--gt-teal-ink);   --gt-sig-dk: var(--gt-teal-dk);
+  --gt-sig-2: var(--gt-magenta); --gt-sig-2-ink: var(--gt-magenta-ink);
+}
+.gt-beatsurfer, [data-gt="beatsurfer"] {
+  --gt-sig: var(--gt-magenta); --gt-sig-ink: var(--gt-magenta-ink); --gt-sig-dk: var(--gt-magenta-dk);
+  --gt-sig-2: var(--gt-cyan);  --gt-sig-2-ink: var(--gt-cyan-ink);
+}
+.gt-frequencypilot, [data-gt="frequencypilot"] {
+  --gt-sig: var(--gt-teal);   --gt-sig-ink: var(--gt-teal-ink);   --gt-sig-dk: var(--gt-teal-dk);
+  --gt-sig-2: var(--gt-magenta); --gt-sig-2-ink: var(--gt-magenta-ink);
+}
+/* AddSon is for kids. It keeps the shared substrate so it belongs to the family,
+   but softens: warmer signal, larger radii, no hazard motifs. */
+.gt-addson, [data-gt="addson"] {
+  --gt-sig: var(--gt-sky);    --gt-sig-ink: var(--gt-sky-ink);    --gt-sig-dk: var(--gt-sky-dk);
+  --gt-sig-2: var(--gt-green); --gt-sig-2-ink: var(--gt-green-ink);
+  --gt-r-2: 10px; --gt-r-3: 16px; --gt-r-4: 22px; --gt-r-cut: 0px;
+  --gt-track-btn: .08em; --gt-track-label: .10em;
+}
+.gt-mediestudio, [data-gt="mediestudio"] {
+  --gt-sig: var(--gt-cyan);   --gt-sig-ink: var(--gt-cyan-ink);   --gt-sig-dk: var(--gt-cyan-dk);
+  --gt-sig-2: var(--gt-amber); --gt-sig-2-ink: var(--gt-amber-ink);
+  --gt-r-cut: 0px;            /* a production tool does not need cut corners */
+}
+.gt-sprunkiverse, [data-gt="sprunkiverse"] {
+  --gt-sig: var(--gt-plum);   --gt-sig-ink: var(--gt-plum-ink);   --gt-sig-dk: var(--gt-plum-dk);
+  --gt-sig-2: var(--gt-gold); --gt-sig-2-ink: var(--gt-gold-ink);
+}
+.gt-hector, [data-gt="hector"] {
+  --gt-sig: var(--gt-gold);   --gt-sig-ink: var(--gt-gold-ink);   --gt-sig-dk: var(--gt-gold-dk);
+  --gt-sig-2: var(--gt-cyan); --gt-sig-2-ink: var(--gt-cyan-ink);
+}
+.gt-rltracker, [data-gt="rltracker"] {
+  --gt-sig: var(--gt-cyan);   --gt-sig-ink: var(--gt-cyan-ink);   --gt-sig-dk: var(--gt-cyan-dk);
+  --gt-sig-2: var(--gt-amber); --gt-sig-2-ink: var(--gt-amber-ink);
+  --gt-r-cut: 0px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   BLOOM — and why it is declared here rather than in :root with everything else.
+
+   A custom property whose value contains var() is substituted at the point it is
+   DECLARED, not the point it is used. Descendants then inherit the already-
+   resolved string. So this, the obvious way to write it, is broken:
+
+       :root            { --gt-sig: cyan;   --gt-bloom: 0 0 22px var(--gt-sig); }
+       [data-gt="hub"]  { --gt-sig: violet; }
+
+   --gt-bloom computes to "0 0 22px cyan" on :root and every descendant inherits
+   that cyan, no matter what --gt-sig says further down. The first draft of this
+   file did exactly that, and every glow on every surface came out cyan — a
+   violet hub with cyan light. Measured in Chrome: rgb(25,224,255) everywhere.
+
+   The fix is to re-declare bloom on the same elements that re-declare the
+   signal, so the substitution happens with the right value in scope.
+   ═══════════════════════════════════════════════════════════════════════════ */
+:root,
+[data-gt],
+[class*="gt-"],
+[style*="--gt-sig"] {
+  --gt-bloom-sm: 0 0 14px -4px var(--gt-sig);
+  --gt-bloom:    0 0 22px -4px var(--gt-sig), 0 0 52px -18px var(--gt-sig);
+  --gt-bloom-lg: 0 0 30px -4px var(--gt-sig), 0 0 90px -22px var(--gt-sig);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   COMPONENTS — opt-in classes. Nothing here restyles bare elements, so dropping
+   ds.css into an existing page changes nothing until you ask it to.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Focus lives at the very END of this file — see the block after the components.
+   Putting it here, before the hover rules, is what the first draft did, and hover
+   won every tie. */
+
+/* Both plate classes get used on <a> as often as on <button>, and an anchor
+   arrives with an underline and the UA link colour. Reset both here rather than
+   making every surface remember to. */
+.gt-plate, .gt-btn { text-decoration: none; -webkit-tap-highlight-color: transparent; }
+
+/* ── Emissive plate: the primary action. ──────────────────────────────────── */
+.gt-plate {
+  position: relative;
+  display: inline-flex; align-items: center; justify-content: center;
+  gap: var(--gt-s-2);
+  padding: 12px 22px;
+  border: 0; cursor: pointer;
+  font-family: var(--gt-font-ui);
+  font-size: var(--gt-t-sm); font-weight: 700;
+  letter-spacing: var(--gt-track-btn); text-transform: uppercase;
+  color: var(--gt-ink-on-lit);
+  background: var(--gt-sig);
+  border-radius: var(--gt-r-2);
+  clip-path: polygon(var(--gt-r-cut) 0, 100% 0,
+                     100% calc(100% - var(--gt-r-cut)),
+                     calc(100% - var(--gt-r-cut)) 100%,
+                     0 100%, 0 var(--gt-r-cut));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, .45),
+    inset 0 -1px 0 rgba(0, 0, 0, .30),
+    0 0 0 1px var(--gt-sig-dk),
+    0 1px 2px rgba(0, 0, 0, .7),
+    var(--gt-bloom-sm);
+  transition: filter var(--gt-d-2) var(--gt-ease-out),
+              transform var(--gt-d-1) var(--gt-ease-snap);
+}
+.gt-plate:hover  { filter: brightness(1.13) saturate(1.04); transform: translateY(-1px); }
+.gt-plate:active { filter: brightness(.94); transform: translateY(1px); }
+.gt-plate[disabled], .gt-plate[aria-disabled="true"] {
+  background: var(--gt-pl-3); color: var(--gt-ink-3);
+  box-shadow: var(--gt-e-0); cursor: not-allowed; filter: none; transform: none;
+}
+
+/* ── Machined plate: the quiet default. ───────────────────────────────────── */
+.gt-btn {
+  position: relative;
+  display: inline-flex; align-items: center; justify-content: center;
+  gap: var(--gt-s-2);
+  padding: 12px 20px;
+  cursor: pointer;
+  font-family: var(--gt-font-ui);
+  font-size: var(--gt-t-sm); font-weight: 600;
+  letter-spacing: var(--gt-track-btn); text-transform: uppercase;
+  color: var(--gt-ink-1);
+  background: linear-gradient(180deg, var(--gt-pl-2), var(--gt-pl-1));
+  border: 1px solid var(--gt-edge-bezel);
+  border-radius: var(--gt-r-2);
+  box-shadow: var(--gt-e-1);
+  transition: background var(--gt-d-2) var(--gt-ease-soft),
+              border-color var(--gt-d-2) var(--gt-ease-soft),
+              box-shadow var(--gt-d-2) var(--gt-ease-soft),
+              transform var(--gt-d-1) var(--gt-ease-snap);
+}
+.gt-btn:hover {
+  background: linear-gradient(180deg, var(--gt-pl-3), var(--gt-pl-2));
+  border-color: var(--gt-sig);
+  box-shadow: var(--gt-e-1), var(--gt-bloom-sm);
+}
+.gt-btn:active { transform: translateY(1px); background: var(--gt-pl-4); }
+.gt-btn[disabled] { opacity: .45; cursor: not-allowed; transform: none; }
+/* Left edge bar — a second, non-colour channel for "this one is active". */
+.gt-btn--marked::before {
+  content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+  background: var(--gt-sig); opacity: .85;
+  border-radius: var(--gt-r-2) 0 0 var(--gt-r-2);
+}
+.gt-btn--ghost {
+  background: transparent; border-color: var(--gt-edge-hair); box-shadow: none;
+}
+.gt-btn--ghost:hover { background: var(--gt-pl-1); box-shadow: none; }
+
+/* ── Elevation utilities ──────────────────────────────────────────────────────
+   Fill + edge + shadow together. This is the part that actually reads as depth
+   on a dark substrate; see the note on --gt-e-* above. */
+.gt-elev-0 { background: var(--gt-sub-1); border: 1px solid var(--gt-edge-hair);
+             box-shadow: var(--gt-e-0); }
+.gt-elev-1 { background: var(--gt-pl-1); border: 1px solid var(--gt-edge-hair);
+             box-shadow: var(--gt-e-1); }
+.gt-elev-2 { background: linear-gradient(180deg, var(--gt-pl-2), var(--gt-pl-1));
+             border: 1px solid var(--gt-edge-bezel); box-shadow: var(--gt-e-2); }
+.gt-elev-3 { background: linear-gradient(180deg, var(--gt-pl-3), var(--gt-pl-2));
+             border: 1px solid var(--gt-edge-bezel); box-shadow: var(--gt-e-3); }
+.gt-elev-4 { background: linear-gradient(180deg, var(--gt-pl-4), var(--gt-pl-2));
+             border: 1px solid var(--gt-edge-lip); box-shadow: var(--gt-e-4); }
+/* Sunken: the inverse. Wells, inputs, timeline tracks, list backgrounds. */
+.gt-sunken { background: var(--gt-void); border: 1px solid var(--gt-edge-hair);
+             box-shadow: inset 0 2px 6px rgba(0, 0, 0, .75), inset 0 -1px 0 var(--gt-lip); }
+
+/* ── Panel / card ─────────────────────────────────────────────────────────── */
+.gt-panel {
+  background: linear-gradient(180deg, var(--gt-pl-1), var(--gt-sub-1));
+  border: 1px solid var(--gt-edge-hair);
+  border-radius: var(--gt-r-3);
+  box-shadow: var(--gt-e-2);
+}
+.gt-card {
+  position: relative;
+  display: block; overflow: hidden;
+  text-decoration: none; color: var(--gt-ink-1);
+  background: linear-gradient(180deg, var(--gt-pl-1), var(--gt-sub-1));
+  border: 1px solid var(--gt-edge-hair);
+  border-radius: var(--gt-r-3);
+  box-shadow: var(--gt-e-2);
+  transition: transform var(--gt-d-3) var(--gt-ease-out),
+              border-color var(--gt-d-3) var(--gt-ease-soft),
+              box-shadow var(--gt-d-3) var(--gt-ease-out);
+}
+a.gt-card:hover {
+  transform: translateY(-6px);
+  border-color: var(--gt-sig);
+  box-shadow: var(--gt-e-3), var(--gt-bloom-sm);
+}
+/* "Coming soon" — a stated condition, not a dimmer switch. v1 used opacity:.65,
+   which faded the text and the frame together and made both harder to read. */
+.gt-card--soon {
+  border-style: dashed; border-color: var(--gt-edge-hair);
+  background: var(--gt-sub-1); box-shadow: none;
+}
+.gt-card--soon .gt-card__title { color: var(--gt-ink-3); }
+
+/* ── Chips, badges, tags ──────────────────────────────────────────────────── */
+.gt-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 5px 11px;
+  font-family: var(--gt-font-ui);
+  font-size: var(--gt-t-xs); font-weight: 600;
+  letter-spacing: var(--gt-track-label); text-transform: uppercase;
+  color: var(--gt-ink-2);
+  background: var(--gt-pl-2);
+  border: 1px solid var(--gt-edge-hair);
+  border-radius: var(--gt-r-1);
+}
+.gt-chip--lit {
+  color: var(--gt-ink-on-lit); background: var(--gt-sig);
+  border-color: var(--gt-sig-dk);
+}
+.gt-badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 8px;
+  font-family: var(--gt-font-mono);
+  font-size: var(--gt-t-xs); font-weight: 700;
+  letter-spacing: .1em;
+  color: var(--gt-ink-3);
+  background: var(--gt-sub-1);
+  border: 1px solid var(--gt-edge-hair);
+  border-radius: var(--gt-r-1);
+}
+
+/* ── Inputs ───────────────────────────────────────────────────────────────── */
+.gt-input {
+  padding: 10px 13px;
+  font-family: var(--gt-font-body); font-size: var(--gt-t-base);
+  color: var(--gt-ink-1);
+  /* Sunken, not raised — an input should not look like a button. The RTS menu's
+     code field did, and people clicked it. */
+  background: var(--gt-void);
+  border: 1px solid var(--gt-edge-hair);
+  border-radius: var(--gt-r-2);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, .7);
+  transition: border-color var(--gt-d-2) var(--gt-ease-soft);
+}
+.gt-input::placeholder { color: var(--gt-ink-4); }
+.gt-input:hover { border-color: var(--gt-edge-bezel); }
+.gt-input:focus-visible { border-color: var(--gt-sig); }
+
+/* ── Pattern fills: the second channel for multi-series data ──────────────── */
+.gt-pat-a { background-image: var(--gt-pat-hatch-a); }
+.gt-pat-b { background-image: var(--gt-pat-hatch-b); }
+.gt-pat-c { background: var(--gt-pat-dot); }
+.gt-pat-d { background-image: var(--gt-pat-grid); }
+
+/* ── Rules, dividers, hazard bands ────────────────────────────────────────── */
+.gt-hr { height: 1px; border: 0; background: var(--gt-edge-hair); }
+/* BUDGET: at most ONE hazard band per viewport, and only where something is
+   genuinely being warned about or a section genuinely divides. Two striped bands
+   on one screen stops reading as industrial and starts reading as a paintball
+   course. There is deliberately no full-bleed variant. */
+.gt-hazard {
+  height: 9px; background: var(--gt-hz-caution);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .18), inset 0 -1px 0 rgba(0, 0, 0, .5);
+}
+.gt-hazard--danger { background: var(--gt-hz-danger); }
+.gt-hazard--inert  { background: var(--gt-hz-inert); box-shadow: none; }
+
+/* Rivets: four corner dots. Decoration, and a cheap way to make a panel read as
+   fixed to the substrate rather than floating above it. */
+.gt-riveted { position: relative; }
+.gt-riveted::before, .gt-riveted::after,
+.gt-riveted > .gt-rivet::before, .gt-riveted > .gt-rivet::after {
+  content: ""; position: absolute; width: 3px; height: 3px; border-radius: 50%;
+  background: var(--gt-edge-lip); box-shadow: 0 1px 0 rgba(0, 0, 0, .7);
+  pointer-events: none;
+}
+.gt-riveted::before { left: 6px; top: 6px; }
+.gt-riveted::after  { right: 6px; top: 6px; }
+.gt-riveted > .gt-rivet::before { left: 6px; bottom: 6px; }
+.gt-riveted > .gt-rivet::after  { right: 6px; bottom: 6px; }
+
+/* ── HUD over live canvas ─────────────────────────────────────────────────────
+   A translucent panel over a WebGL surface has no contrast guarantee: whatever
+   the game draws underneath is the background, and it changes every frame. A
+   white flash behind a translucent HUD takes body text to roughly 1:1.
+
+   So HUD surfaces are OPAQUE. No alpha, no backdrop-filter — which also removes
+   the per-frame blur cost on exactly the surfaces that can least afford it
+   (game, rts, sprunkiverse all run full-screen canvas).
+
+   Because the fill is opaque, the ratio is fixed and does not depend on the
+   canvas at all — that is the whole point. Computed for --gt-hud #0C0F15:
+     --gt-ink-1 #E8ECF2  16.2:1
+     --gt-ink-2 #B9C2CF  10.4:1
+     --gt-ink-3 #909AA9   6.8:1
+   All three hold no matter what is being rendered behind. */
+.gt-hud {
+  background: var(--gt-hud, #0C0F15);
+  border: 1px solid var(--gt-edge-bezel);
+  border-radius: var(--gt-r-2);
+  box-shadow: var(--gt-e-1);
+  backdrop-filter: none;
+}
+:root { --gt-hud: #0C0F15; }
+
+/* ── Texture overlay ──────────────────────────────────────────────────────────
+   Both layers sit BELOW content, not over it. An overlay-blended grain on top of
+   small text muddies it, and the effect is meant to be felt on the substrate,
+   not read on the type. Put these two as the first children of <body> and give
+   your content a higher z-index. */
+.gt-grain {
+  position: fixed; inset: 0; z-index: 1; pointer-events: none;
+  background-image: var(--gt-grain);
+  background-size: 140px 140px;
+  opacity: var(--gt-grain-opacity);
+  mix-blend-mode: overlay;
+}
+.gt-vignette {
+  position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  background: var(--gt-vignette);
+}
+/* Never on a live canvas or a production tool: it costs a full-screen composite
+   on exactly the surfaces that can least afford one, and a video editor's job is
+   to show the footage truthfully, not through a filter. */
+[data-gt="mediestudio"] .gt-grain,
+[data-gt="rltracker"] .gt-grain { display: none; }
+
+/* ── Icons ────────────────────────────────────────────────────────────────── */
+/* The stroke defaults are repeated here on purpose. icons.svg carries its own
+   <style> block, and when a symbol is pulled in with <use href="icons.svg#…">
+   the clone lands in a shadow tree — whether the source document's stylesheet
+   reaches it is not something to bet a whole icon set on. Without a fallback the
+   failure mode is every icon rendering as a solid black blob. With one, the worst
+   case is that a handful of deliberately-solid marks (play, record, dot) come
+   through as outlines. */
+.gi {
+  width: 1.15em; height: 1.15em;
+  flex: none;
+  color: currentColor;
+  vertical-align: -.16em;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.gi--lg { width: 1.5em; height: 1.5em; }
+.gi--sm { width: 1em; height: 1em; }
+
+/* ── Type helpers ─────────────────────────────────────────────────────────── */
+.gt-logo {
+  font-family: var(--gt-font-logo); font-weight: 900;
+  letter-spacing: var(--gt-track-logo); line-height: var(--gt-lh-tight);
+  text-transform: uppercase;
+}
+.gt-h1 { font-family: var(--gt-font-ui); font-size: var(--gt-t-2xl); font-weight: 700;
+         letter-spacing: var(--gt-track-head); line-height: var(--gt-lh-head);
+         text-transform: uppercase; }
+.gt-h2 { font-family: var(--gt-font-ui); font-size: var(--gt-t-lg); font-weight: 700;
+         letter-spacing: var(--gt-track-head); line-height: var(--gt-lh-head);
+         text-transform: uppercase; }
+.gt-body { font-family: var(--gt-font-body); font-size: var(--gt-t-base);
+           line-height: var(--gt-lh-body); color: var(--gt-ink-2);
+           max-width: var(--gt-wrap-text); }
+.gt-label { font-family: var(--gt-font-ui); font-size: var(--gt-t-xs); font-weight: 600;
+            letter-spacing: var(--gt-track-label); text-transform: uppercase;
+            color: var(--gt-ink-3); }
+.gt-tagline { font-family: var(--gt-font-ui); font-size: var(--gt-t-sm); font-weight: 600;
+              letter-spacing: var(--gt-track-tag); text-transform: uppercase;
+              color: var(--gt-sig-ink); }
+/* ink-3, not ink-4. The first draft used ink-4 here and measured 4.15:1 — under
+   AA. The rule that ink-4 never carries text applies to this file too. */
+.gt-serial { font-family: var(--gt-font-mono); font-size: var(--gt-t-xs);
+             letter-spacing: .14em; color: var(--gt-ink-3); }
+/* Numerals that change in place — scores, timers, meters — must not reflow. */
+.gt-num { font-family: var(--gt-font-ui); font-variant-numeric: tabular-nums;
+          font-feature-settings: "tnum" 1; letter-spacing: .02em; }
+
+/* ── Selection ────────────────────────────────────────────────────────────── */
+::selection { background: var(--gt-sig); color: var(--gt-ink-on-lit); }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   FOCUS — last on purpose.
+
+   Two things went wrong here in the first draft, both measured in Chrome:
+
+   1. The focus block sat above the components. `.gt-btn:focus-visible` and
+      `.gt-btn:hover` are both (0,2,0), so on a tie the later rule wins — and
+      hover was later. A keyboard user whose mouse happened to rest on the
+      button got the hover shadow instead of the ring. On `.gt-btn--ghost`,
+      whose hover sets `box-shadow: none`, they got NO visible focus at all.
+      That is WCAG 2.4.7 failing in the one situation nobody tests.
+      Fix: same specificity, but last. Ties now go to focus.
+
+   2. `.gt-plate:focus-visible { --gt-focus-ink: …; --gt-focus-gap: … }` was
+      dead code. --gt-focus-ring is declared on :root, so its var()s resolve
+      there; re-declaring the two inputs on a descendant cannot reach it. Same
+      trap as the bloom tokens. Measured: the ring on a plate was byte-identical
+      to the ring at :root.
+      It is left un-inverted deliberately — a near-black gap against a lit plate
+      with a white outer edge against the dark page is the readable combination.
+      Inverting would have put a #07090C ring on a #0A0C10 substrate.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.gt-focusable:focus-visible,
+.gt-btn:focus-visible,
+.gt-plate:focus-visible,
+.gt-card:focus-visible,
+.gt-chip:focus-visible,
+.gt-input:focus-visible {
+  outline: none;
+  box-shadow: var(--gt-focus-ring);
+}
+/* Hover rules that also set box-shadow must not out-specify this. If a surface
+   adds one like `.gt-btn:hover:not(:disabled)` — (0,3,0), because :not() takes
+   its argument's specificity — it will win again. Match it here if so. */
+.gt-btn:hover:focus-visible,
+.gt-btn--ghost:hover:focus-visible,
+a.gt-card:hover:focus-visible,
+.gt-plate:hover:focus-visible {
+  box-shadow: var(--gt-focus-ring);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   MOTION PREFERENCE
+   Everything above degrades to instant. Transforms are removed rather than
+   shortened, because a 1ms lift still reads as a jump.
+   ═══════════════════════════════════════════════════════════════════════════ */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .gt-plate:hover, .gt-btn:active, a.gt-card:hover { transform: none; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   FORCED COLORS (Windows high-contrast). Plates lose their fill there, so the
+   border is what has to survive — otherwise buttons vanish entirely.
+   ═══════════════════════════════════════════════════════════════════════════ */
+@media (forced-colors: active) {
+  .gt-plate, .gt-btn, .gt-card, .gt-chip, .gt-input {
+    border: 1px solid ButtonBorder;
+    clip-path: none;
+  }
+  .gt-plate:focus-visible, .gt-btn:focus-visible,
+  .gt-card:focus-visible, .gt-input:focus-visible { outline: 3px solid Highlight; }
+}
