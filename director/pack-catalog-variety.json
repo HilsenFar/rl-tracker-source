@@ -1,0 +1,115 @@
+{
+  "source": {
+    "note": "Afvekslings-liste kurateret 30/7-2026 på brugerens krav: repetition er tung, både for ham og for slutbrugere efter launch. Packs valgt fra de to store kataloger på Silver-niveau (±1 tier). 'coupling' siger ÆRLIGT om valget er målt behov, erklæret mål eller ren afveksling. Prejump-felter (difficulty/tags/likes) er Prejumps egne data; ratings /50 er Lander1984s egne.",
+    "rule": "Rotationsprincip: højst én afvekslings-bane pr. rapport, aldrig i stedet for den primære målte kobling — afveksling er krydderi, ikke hovedret."
+  },
+  "packs": [
+    {
+      "name": "Well Rounded - Silver",
+      "code": "E2D1-F1A8-0D82-7879",
+      "from": "prejump",
+      "difficulty": "Silver",
+      "likes": 10,
+      "what": "blandet træning bygget til præcis dit niveau",
+      "coupling": "afveksling",
+      "whatEn": "mixed training built for exactly your level"
+    },
+    {
+      "name": "Pink Belt - Hook Shot",
+      "code": "E114-58E9-CF91-DF9C",
+      "from": "prejump",
+      "difficulty": "Gold",
+      "likes": 32,
+      "what": "hook shots — dribble ind, afslut skråt",
+      "coupling": "afveksling + off_touch_share (boldkontrol fremad)",
+      "whatEn": "hook shots — dribble in, finish at an angle"
+    },
+    {
+      "name": "Beginner Dribble Training",
+      "code": "6F35-CE3B-ABCB-FE13",
+      "from": "prejump",
+      "difficulty": "Gold",
+      "likes": 26,
+      "what": "ren dribbling, begynderniveau",
+      "coupling": "off_touch_share (samme behov som Catch & Control, andet indhold)",
+      "whatEn": "pure dribbling, beginner level"
+    },
+    {
+      "name": "Powerslide Through the Center",
+      "code": "2173-6695-8614-AC56",
+      "from": "prejump",
+      "difficulty": "Gold",
+      "likes": 25,
+      "what": "powerslide-kontrol gennem banen — lav intensitet, kreativ",
+      "coupling": "afveksling (bilkontrol uden skudpres)",
+      "whatEn": "powerslide control across the pitch — low intensity, creative"
+    },
+    {
+      "name": "Intermediate Wall Shots/Aerial",
+      "code": "861C-54D1-7B8B-1055",
+      "from": "prejump",
+      "difficulty": "Gold",
+      "likes": 14,
+      "what": "vægskud som bro til aerials",
+      "coupling": "aerial-mål (erklæret mål, ingen metrik endnu)",
+      "whatEn": "wall shots as a bridge to aerials"
+    },
+    {
+      "name": "Basic (inverted) Redirects",
+      "code": "0697-0491-2D8A-8124",
+      "from": "prejump",
+      "difficulty": "Gold",
+      "likes": 14,
+      "what": "begynder-redirects",
+      "coupling": "aerial-mål trin 2-forberedelse",
+      "whatEn": "beginner redirects"
+    },
+    {
+      "name": "Basic Striker",
+      "code": "CD9F-35DB-4025-F731",
+      "from": "prejump",
+      "difficulty": "Silver",
+      "likes": 10,
+      "what": "rolig skudopvarmning, lav intensitet",
+      "coupling": "afveksling (alternativ opvarmning)",
+      "whatEn": "calm shooting warm-up, low intensity"
+    },
+    {
+      "name": "Gold to Plat (Def)",
+      "code": "9E03-716B-5128-2B2E",
+      "from": "prejump",
+      "difficulty": "Gold",
+      "likes": 7,
+      "what": "saves + clears i én pakke",
+      "coupling": "earlyConceded (kolde starter — andet indhold end Saves/Poquito)",
+      "whatEn": "saves + clears in one pack"
+    },
+    {
+      "name": "Biddle's Consistency",
+      "code": "55C9-36FE-613D-7F12",
+      "from": "reddit-katalog",
+      "rating": 50,
+      "what": "som The Ultimate Warmup, men sværere",
+      "coupling": "afveksling (næste trin når warmup føles let)",
+      "whatEn": "like The Ultimate Warmup, but harder"
+    },
+    {
+      "name": "Best Of 2023 RLCS",
+      "code": "5F1A-604B-972A-3C77",
+      "from": "reddit-katalog",
+      "rating": 33,
+      "what": "scenarier fra rigtige pro-kampe",
+      "coupling": "afveksling (sjov — spil situationerne fra RLCS)",
+      "whatEn": "scenarios from real pro matches"
+    },
+    {
+      "name": "Biddle's Catches",
+      "code": "3EA9-533B-4329-67B3",
+      "from": "reddit-katalog",
+      "rating": 15,
+      "what": "catches der træner LANGSOMT spil",
+      "coupling": "afveksling + boost-disciplin (ro frem for jagt)",
+      "whatEn": "catches that train SLOW play"
+    }
+  ]
+}

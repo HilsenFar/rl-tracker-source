@@ -1,0 +1,441 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  GITATO icon sprite v2 — original artwork, drawn for this project.
+
+  Replaces the 45+ OS emoji and stray geometric glyphs that were doing icon duty
+  across the portfolio (📁 💾 🎬 ⚙ 👍 ⚔ ◆ ▸ …). Emoji render in the OS font, in
+  full colour, at an optical weight nobody controls; these do not.
+
+  GRID       24×24 viewBox, artwork inside a 20×20 optical box (2px breathing room).
+  STROKE     currentColor, width 1.75, round cap + round join. Scales with font-size
+             when you set width/height in em.
+  FILL       none by default. A handful of marks are intentionally solid (play,
+             record, dot) — those declare fill="currentColor" on the shape itself.
+  USAGE      <svg class="gi"><use href="icons.svg#gi-save"/></svg>
+             …or inline the whole sprite once and use href="#gi-save".
+
+  Keep ids stable: they are referenced from every surface.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" style="display:none" aria-hidden="true">
+  <defs>
+    <style>
+      symbol { --sw: 1.75; }
+      symbol > * { fill: none; stroke: currentColor; stroke-width: var(--sw);
+                   stroke-linecap: round; stroke-linejoin: round; }
+      symbol > .solid { fill: currentColor; stroke: none; }
+      symbol > .thin { stroke-width: 1.25; }
+    </style>
+  </defs>
+
+  <!-- ══ TRANSPORT ══════════════════════════════════════════════════ -->
+
+  <symbol id="gi-play" viewBox="0 0 24 24">
+    <path class="solid" d="M8 5.2a1 1 0 0 1 1.52-.85l9 6.8a1 1 0 0 1 0 1.7l-9 6.8A1 1 0 0 1 8 18.8Z"/>
+  </symbol>
+
+  <symbol id="gi-pause" viewBox="0 0 24 24">
+    <rect class="solid" x="7" y="4.5" width="3.6" height="15" rx="1.2"/>
+    <rect class="solid" x="13.4" y="4.5" width="3.6" height="15" rx="1.2"/>
+  </symbol>
+
+  <symbol id="gi-stop" viewBox="0 0 24 24">
+    <rect class="solid" x="5.5" y="5.5" width="13" height="13" rx="2"/>
+  </symbol>
+
+  <symbol id="gi-record" viewBox="0 0 24 24">
+    <circle class="solid" cx="12" cy="12" r="6"/>
+  </symbol>
+
+  <symbol id="gi-skip-fwd" viewBox="0 0 24 24">
+    <path class="solid" d="M4 6.2a1 1 0 0 1 1.55-.83l7.4 5.8a1 1 0 0 1 0 1.66l-7.4 5.8A1 1 0 0 1 4 17.8Z"/>
+    <path d="M18.5 5v14"/>
+  </symbol>
+
+  <symbol id="gi-skip-back" viewBox="0 0 24 24">
+    <path class="solid" d="M20 6.2a1 1 0 0 0-1.55-.83l-7.4 5.8a1 1 0 0 0 0 1.66l7.4 5.8A1 1 0 0 0 20 17.8Z"/>
+    <path d="M5.5 5v14"/>
+  </symbol>
+
+  <symbol id="gi-step-fwd" viewBox="0 0 24 24">
+    <path d="M8 5.5 15 12l-7 6.5"/>
+    <path d="M18 5v14"/>
+  </symbol>
+
+  <symbol id="gi-step-back" viewBox="0 0 24 24">
+    <path d="M16 5.5 9 12l7 6.5"/>
+    <path d="M6 5v14"/>
+  </symbol>
+
+  <!-- ══ FILES & MEDIA ══════════════════════════════════════════════ -->
+
+  <symbol id="gi-folder" viewBox="0 0 24 24">
+    <path d="M3 7.2a2 2 0 0 1 2-2h3.7a2 2 0 0 1 1.5.7l1.2 1.4H19a2 2 0 0 1 2 2v7.5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/>
+  </symbol>
+
+  <symbol id="gi-folder-open" viewBox="0 0 24 24">
+    <path d="M3 18.4V7.2a2 2 0 0 1 2-2h3.7a2 2 0 0 1 1.5.7l1.2 1.4H18a2 2 0 0 1 2 2v1.2"/>
+    <path d="M3 18.4 5.6 11a1.6 1.6 0 0 1 1.5-1H21a.9.9 0 0 1 .85 1.2l-2.2 6.4a2 2 0 0 1-1.9 1.4H5a2 2 0 0 1-2-1.6Z"/>
+  </symbol>
+
+  <symbol id="gi-file-plus" viewBox="0 0 24 24">
+    <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8Z"/>
+    <path d="M14 3v5h5"/>
+    <path d="M12 11.5v6M9 14.5h6"/>
+  </symbol>
+
+  <symbol id="gi-save" viewBox="0 0 24 24">
+    <path d="M4.8 3.8h11.3L20.2 8v12.2a1 1 0 0 1-1 1H4.8a1 1 0 0 1-1-1V4.8a1 1 0 0 1 1-1Z"/>
+    <path d="M7.6 3.8v5.1h7.6V3.8"/>
+    <path d="M7.6 21.2v-6.6h8.8v6.6"/>
+  </symbol>
+
+  <symbol id="gi-download" viewBox="0 0 24 24">
+    <path d="M12 3.5v11.6"/>
+    <path d="M7.4 10.8 12 15.4l4.6-4.6"/>
+    <path d="M4 17.4v1.6a1.5 1.5 0 0 0 1.5 1.5h13a1.5 1.5 0 0 0 1.5-1.5v-1.6"/>
+  </symbol>
+
+  <symbol id="gi-upload" viewBox="0 0 24 24">
+    <path d="M12 20.5V8.9"/>
+    <path d="M7.4 13.2 12 8.6l4.6 4.6"/>
+    <path d="M4 6.6V5a1.5 1.5 0 0 1 1.5-1.5h13A1.5 1.5 0 0 1 20 5v1.6"/>
+  </symbol>
+
+  <symbol id="gi-image" viewBox="0 0 24 24">
+    <rect x="3" y="4.5" width="18" height="15" rx="2"/>
+    <circle cx="8.6" cy="9.6" r="1.6"/>
+    <path d="M3.4 17.2 8.7 12a1.5 1.5 0 0 1 2.1 0l4 4"/>
+    <path d="m13.8 14.8 2.1-2a1.5 1.5 0 0 1 2.1 0l2.6 2.5"/>
+  </symbol>
+
+  <symbol id="gi-film" viewBox="0 0 24 24">
+    <rect x="2.8" y="4.5" width="18.4" height="15" rx="2"/>
+    <path d="M7.6 4.5v15M16.4 4.5v15M2.8 12h18.4"/>
+    <path d="M2.8 8.2h4.8M2.8 15.8h4.8M16.4 8.2h4.8M16.4 15.8h4.8"/>
+  </symbol>
+
+  <symbol id="gi-camera" viewBox="0 0 24 24">
+    <path d="M3 8.6a2 2 0 0 1 2-2h2.3l1.3-2.1h6.8l1.3 2.1H19a2 2 0 0 1 2 2v8.8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/>
+    <circle cx="12" cy="12.8" r="3.6"/>
+  </symbol>
+
+  <symbol id="gi-music" viewBox="0 0 24 24">
+    <path d="M9 18V5.6l10-2v12.2"/>
+    <circle cx="6.4" cy="18" r="2.6"/>
+    <circle cx="16.4" cy="15.8" r="2.6"/>
+  </symbol>
+
+  <symbol id="gi-waveform" viewBox="0 0 24 24">
+    <path d="M3 12h1.6M7.2 7.4v9.2M11.4 4v16M15.6 8.8v6.4M19.8 10.6v2.8"/>
+  </symbol>
+
+  <!-- ══ EDITING ════════════════════════════════════════════════════ -->
+
+  <!-- two clip blocks parted by the playhead: reads as "cut here", not "merge" -->
+  <symbol id="gi-split" viewBox="0 0 24 24">
+    <rect x="3" y="6.6" width="6.4" height="10.8" rx="1.4"/>
+    <rect x="14.6" y="6.6" width="6.4" height="10.8" rx="1.4"/>
+    <path d="M12 3.2v17.6"/>
+  </symbol>
+
+  <symbol id="gi-scissors" viewBox="0 0 24 24">
+    <circle cx="6.2" cy="6.2" r="2.7"/>
+    <circle cx="6.2" cy="17.8" r="2.7"/>
+    <path d="M8.4 7.9 19.5 18.6M8.4 16.1 19.5 5.4"/>
+  </symbol>
+
+  <symbol id="gi-trash" viewBox="0 0 24 24">
+    <path d="M4 6.6h16"/>
+    <path d="M9.2 6.6V4.8a1.3 1.3 0 0 1 1.3-1.3h3a1.3 1.3 0 0 1 1.3 1.3v1.8"/>
+    <path d="M6.1 6.6 7 19.4a1.6 1.6 0 0 0 1.6 1.5h6.8a1.6 1.6 0 0 0 1.6-1.5l.9-12.8"/>
+    <path d="M10.4 10.4v6.4M13.6 10.4v6.4"/>
+  </symbol>
+
+  <symbol id="gi-duplicate" viewBox="0 0 24 24">
+    <rect x="8.4" y="8.4" width="12" height="12" rx="2"/>
+    <path d="M15.6 5.4V5a1.4 1.4 0 0 0-1.4-1.4H5A1.4 1.4 0 0 0 3.6 5v9.2a1.4 1.4 0 0 0 1.4 1.4h.4"/>
+  </symbol>
+
+  <symbol id="gi-text" viewBox="0 0 24 24">
+    <path d="M4.5 6.4V4.5h15v1.9"/>
+    <path d="M12 4.5v15"/>
+    <path d="M8.6 19.5h6.8"/>
+  </symbol>
+
+  <symbol id="gi-caption" viewBox="0 0 24 24">
+    <rect x="2.8" y="5" width="18.4" height="14" rx="2"/>
+    <path d="M9.8 10.6a2.6 2.6 0 1 0 0 2.8"/>
+    <path d="M17.2 10.6a2.6 2.6 0 1 0 0 2.8"/>
+  </symbol>
+
+  <symbol id="gi-magnet" viewBox="0 0 24 24">
+    <path d="M5.4 4.4h4v7.9a2.6 2.6 0 0 0 5.2 0V4.4h4v7.9a7.6 7.6 0 0 1-13.2 0Z"/>
+    <path d="M5.4 9.4h4M14.6 9.4h4"/>
+  </symbol>
+
+  <symbol id="gi-undo" viewBox="0 0 24 24">
+    <path d="M4 7.6v5.2h5.2"/>
+    <path d="M4.6 12.4a7.6 7.6 0 1 1 2.2 5.8"/>
+  </symbol>
+
+  <symbol id="gi-redo" viewBox="0 0 24 24">
+    <path d="M20 7.6v5.2h-5.2"/>
+    <path d="M19.4 12.4a7.6 7.6 0 1 0-2.2 5.8"/>
+  </symbol>
+
+  <symbol id="gi-refresh" viewBox="0 0 24 24">
+    <path d="M20.2 11.2a8.2 8.2 0 1 0-.7 4.6"/>
+    <path d="M20.4 5.6v5.6h-5.6"/>
+  </symbol>
+
+  <symbol id="gi-zoom" viewBox="0 0 24 24">
+    <circle cx="10.8" cy="10.8" r="6.8"/>
+    <path d="M15.8 15.8 21 21"/>
+  </symbol>
+
+  <symbol id="gi-fit" viewBox="0 0 24 24">
+    <path d="M3.6 8.8V5a1.4 1.4 0 0 1 1.4-1.4h3.8"/>
+    <path d="M20.4 8.8V5A1.4 1.4 0 0 0 19 3.6h-3.8"/>
+    <path d="M3.6 15.2V19A1.4 1.4 0 0 0 5 20.4h3.8"/>
+    <path d="M20.4 15.2V19a1.4 1.4 0 0 1-1.4 1.4h-3.8"/>
+  </symbol>
+
+  <!-- ══ STATUS & FEEDBACK ══════════════════════════════════════════ -->
+
+  <symbol id="gi-check" viewBox="0 0 24 24">
+    <path d="m4.8 12.6 4.8 4.8L19.2 6.6"/>
+  </symbol>
+
+  <symbol id="gi-check-circle" viewBox="0 0 24 24">
+    <circle cx="12" cy="12" r="8.6"/>
+    <path d="m8.2 12.2 2.7 2.7 5-5.3"/>
+  </symbol>
+
+  <symbol id="gi-close" viewBox="0 0 24 24">
+    <path d="M5.6 5.6 18.4 18.4M18.4 5.6 5.6 18.4"/>
+  </symbol>
+
+  <symbol id="gi-warning" viewBox="0 0 24 24">
+    <path d="M10.5 3.9 2.6 17.6a1.7 1.7 0 0 0 1.5 2.6h15.8a1.7 1.7 0 0 0 1.5-2.6L13.5 3.9a1.7 1.7 0 0 0-3 0Z"/>
+    <path d="M12 9v4.4"/>
+    <circle class="solid" cx="12" cy="16.6" r="1.05"/>
+  </symbol>
+
+  <symbol id="gi-info" viewBox="0 0 24 24">
+    <circle cx="12" cy="12" r="8.6"/>
+    <path d="M12 11.2v5"/>
+    <circle class="solid" cx="12" cy="8" r="1.05"/>
+  </symbol>
+
+  <symbol id="gi-star" viewBox="0 0 24 24">
+    <path d="m12 3.4 2.72 5.51 6.08.89-4.4 4.29 1.04 6.05L12 17.28l-5.44 2.86 1.04-6.05-4.4-4.29 6.08-.89Z"/>
+  </symbol>
+
+  <symbol id="gi-heart" viewBox="0 0 24 24">
+    <path d="M12 20.4 4.5 13a4.9 4.9 0 0 1 7.5-6.3A4.9 4.9 0 0 1 19.5 13Z"/>
+  </symbol>
+
+  <symbol id="gi-thumb-up" viewBox="0 0 24 24">
+    <path d="M7 10.4 11 3a2.4 2.4 0 0 1 2.4 2.4V9.4h4.9a1.9 1.9 0 0 1 1.85 2.35l-1.4 6.2A2.2 2.2 0 0 1 16.6 19.7H7Z"/>
+    <path d="M7 10.4H4.4a.9.9 0 0 0-.9.9v7.5a.9.9 0 0 0 .9.9H7Z"/>
+  </symbol>
+
+  <symbol id="gi-thumb-down" viewBox="0 0 24 24">
+    <path d="M7 13.6 11 21a2.4 2.4 0 0 0 2.4-2.4V14.6h4.9a1.9 1.9 0 0 0 1.85-2.35l-1.4-6.2A2.2 2.2 0 0 0 16.6 4.3H7Z"/>
+    <path d="M7 13.6H4.4a.9.9 0 0 1-.9-.9V5.2a.9.9 0 0 1 .9-.9H7Z"/>
+  </symbol>
+
+  <symbol id="gi-dot" viewBox="0 0 24 24">
+    <circle class="solid" cx="12" cy="12" r="4.4"/>
+  </symbol>
+
+  <symbol id="gi-spark" viewBox="0 0 24 24">
+    <path d="M12 2.6c.7 4.9 1.9 6.1 6.8 6.8-4.9.7-6.1 1.9-6.8 6.8-.7-4.9-1.9-6.1-6.8-6.8 4.9-.7 6.1-1.9 6.8-6.8Z"/>
+    <path class="thin" d="M17.8 15.4c.35 2.3.95 2.9 3.25 3.25-2.3.35-2.9.95-3.25 3.25-.35-2.3-.95-2.9-3.25-3.25 2.3-.35 2.9-.95 3.25-3.25Z"/>
+  </symbol>
+
+  <!-- ══ NAVIGATION & CHROME ════════════════════════════════════════ -->
+
+  <symbol id="gi-chevron-right" viewBox="0 0 24 24">
+    <path d="m9.2 4.8 7.2 7.2-7.2 7.2"/>
+  </symbol>
+
+  <symbol id="gi-chevron-left" viewBox="0 0 24 24">
+    <path d="M14.8 4.8 7.6 12l7.2 7.2"/>
+  </symbol>
+
+  <symbol id="gi-chevron-down" viewBox="0 0 24 24">
+    <path d="m4.8 9.2 7.2 7.2 7.2-7.2"/>
+  </symbol>
+
+  <symbol id="gi-chevron-up" viewBox="0 0 24 24">
+    <path d="m4.8 14.8 7.2-7.2 7.2 7.2"/>
+  </symbol>
+
+  <symbol id="gi-arrow-right" viewBox="0 0 24 24">
+    <path d="M3.6 12h16.8"/>
+    <path d="m14.2 5.8 6.2 6.2-6.2 6.2"/>
+  </symbol>
+
+  <symbol id="gi-arrow-left" viewBox="0 0 24 24">
+    <path d="M20.4 12H3.6"/>
+    <path d="M9.8 5.8 3.6 12l6.2 6.2"/>
+  </symbol>
+
+  <symbol id="gi-arrow-up-right" viewBox="0 0 24 24">
+    <path d="M6.6 17.4 17.4 6.6"/>
+    <path d="M8.8 6.6h8.6v8.6"/>
+  </symbol>
+
+  <symbol id="gi-menu" viewBox="0 0 24 24">
+    <path d="M3.8 6.6h16.4M3.8 12h16.4M3.8 17.4h16.4"/>
+  </symbol>
+
+  <symbol id="gi-gear" viewBox="0 0 24 24">
+    <circle cx="12" cy="12" r="3.1"/>
+    <path d="M19.1 14.6a1.55 1.55 0 0 0 .31 1.71l.06.06a1.9 1.9 0 1 1-2.68 2.68l-.06-.06a1.55 1.55 0 0 0-1.71-.31 1.55 1.55 0 0 0-.94 1.42v.16a1.9 1.9 0 1 1-3.79 0v-.09a1.55 1.55 0 0 0-1.01-1.42 1.55 1.55 0 0 0-1.71.31l-.06.06a1.9 1.9 0 1 1-2.68-2.68l.06-.06a1.55 1.55 0 0 0 .31-1.71 1.55 1.55 0 0 0-1.42-.94h-.16a1.9 1.9 0 1 1 0-3.79h.09a1.55 1.55 0 0 0 1.42-1.01 1.55 1.55 0 0 0-.31-1.71l-.06-.06a1.9 1.9 0 1 1 2.68-2.68l.06.06a1.55 1.55 0 0 0 1.71.31h.07a1.55 1.55 0 0 0 .94-1.42v-.16a1.9 1.9 0 1 1 3.79 0v.09a1.55 1.55 0 0 0 .94 1.42 1.55 1.55 0 0 0 1.71-.31l.06-.06a1.9 1.9 0 1 1 2.68 2.68l-.06.06a1.55 1.55 0 0 0-.31 1.71v.07a1.55 1.55 0 0 0 1.42.94h.16a1.9 1.9 0 1 1 0 3.79h-.09a1.55 1.55 0 0 0-1.42.94Z"/>
+  </symbol>
+
+  <symbol id="gi-sliders" viewBox="0 0 24 24">
+    <path d="M6 20.4V14M6 10V3.6M12 20.4v-9.4M12 7V3.6M18 20.4v-4.6M18 11.8V3.6"/>
+    <path d="M3.4 14h5.2M9.4 7h5.2M15.4 15.8h5.2"/>
+  </symbol>
+
+  <symbol id="gi-share" viewBox="0 0 24 24">
+    <circle cx="18.2" cy="5.6" r="2.6"/>
+    <circle cx="5.8" cy="12" r="2.6"/>
+    <circle cx="18.2" cy="18.4" r="2.6"/>
+    <path d="m8.1 10.8 7.8-4M8.1 13.2l7.8 4"/>
+  </symbol>
+
+  <symbol id="gi-link" viewBox="0 0 24 24">
+    <path d="M10.2 13.8a3.8 3.8 0 0 0 5.7.4l2.9-2.9a3.8 3.8 0 0 0-5.4-5.4l-1.7 1.6"/>
+    <path d="M13.8 10.2a3.8 3.8 0 0 0-5.7-.4l-2.9 2.9a3.8 3.8 0 0 0 5.4 5.4l1.6-1.6"/>
+  </symbol>
+
+  <symbol id="gi-external" viewBox="0 0 24 24">
+    <path d="M10.4 4.6H5.4A1.8 1.8 0 0 0 3.6 6.4v12.2A1.8 1.8 0 0 0 5.4 20.4h12.2a1.8 1.8 0 0 0 1.8-1.8v-5"/>
+    <path d="M14.2 3.6h6.2v6.2M20.4 3.6 11.6 12.4"/>
+  </symbol>
+
+  <!-- ══ AUDIO ══════════════════════════════════════════════════════ -->
+
+  <symbol id="gi-speaker" viewBox="0 0 24 24">
+    <path d="M4 9.4h3.4L12.6 5v14L7.4 14.6H4a.9.9 0 0 1-.9-.9v-3.4a.9.9 0 0 1 .9-.9Z"/>
+    <path d="M16 9.2a4 4 0 0 1 0 5.6"/>
+    <path d="M18.6 6.4a7.9 7.9 0 0 1 0 11.2"/>
+  </symbol>
+
+  <symbol id="gi-mute" viewBox="0 0 24 24">
+    <path d="M4 9.4h3.4L12.6 5v14L7.4 14.6H4a.9.9 0 0 1-.9-.9v-3.4a.9.9 0 0 1 .9-.9Z"/>
+    <path d="m16.4 9.6 4.4 4.8M20.8 9.6l-4.4 4.8"/>
+  </symbol>
+
+  <symbol id="gi-headphones" viewBox="0 0 24 24">
+    <path d="M4 15.4v-3a8 8 0 0 1 16 0v3"/>
+    <path d="M4 15a2.2 2.2 0 0 1 2.2-2.2h.9a.9.9 0 0 1 .9.9v5.2a.9.9 0 0 1-.9.9h-.9A2.2 2.2 0 0 1 4 17.6Z"/>
+    <path d="M20 15a2.2 2.2 0 0 0-2.2-2.2h-.9a.9.9 0 0 0-.9.9v5.2a.9.9 0 0 0 .9.9h.9A2.2 2.2 0 0 0 20 17.6Z"/>
+  </symbol>
+
+  <!-- ══ INPUT DEVICES ══════════════════════════════════════════════ -->
+
+  <symbol id="gi-gamepad" viewBox="0 0 24 24">
+    <path d="M8.4 6.6h7.2a5.6 5.6 0 0 1 5.5 4.6l.7 4a3 3 0 0 1-5.4 2.3l-1.3-1.7H8.9L7.6 17.5a3 3 0 0 1-5.4-2.3l.7-4a5.6 5.6 0 0 1 5.5-4.6Z"/>
+    <path d="M7 10.6v3.2M5.4 12.2h3.2"/>
+    <circle class="solid" cx="16.2" cy="11.4" r=".95"/>
+    <circle class="solid" cx="18.2" cy="13.4" r=".95"/>
+  </symbol>
+
+  <symbol id="gi-phone" viewBox="0 0 24 24">
+    <rect x="6.4" y="2.6" width="11.2" height="18.8" rx="2.2"/>
+    <path d="M10.4 5.4h3.2"/>
+    <path d="M10.8 18.4h2.4"/>
+  </symbol>
+
+  <symbol id="gi-touch" viewBox="0 0 24 24">
+    <path d="M9.6 11.4V6.2a2 2 0 0 1 4 0v7.2"/>
+    <path d="M13.6 11.6a1.8 1.8 0 0 1 3.6 0v.9"/>
+    <path d="M17.2 12.9a1.8 1.8 0 0 1 3.5 0v3.2a5.4 5.4 0 0 1-5.4 5.3h-2a5 5 0 0 1-3.7-1.6L5.1 15.4a1.8 1.8 0 0 1 2.5-2.6l2 1.8"/>
+  </symbol>
+
+  <symbol id="gi-keyboard" viewBox="0 0 24 24">
+    <rect x="2.4" y="6" width="19.2" height="12" rx="2"/>
+    <path d="M6.4 9.6h.02M10 9.6h.02M13.6 9.6h.02M17.2 9.6h.02M6.4 13h.02M17.2 13h.02M9 14.6h6" />
+  </symbol>
+
+  <!-- ══ GAME / RTS ═════════════════════════════════════════════════ -->
+
+  <!-- cut gem: table facet, crown, girdle, pavilion converging on a point -->
+  <symbol id="gi-crystal" viewBox="0 0 24 24">
+    <path d="M8.2 3.6h7.6l4.8 6.1L12 20.6 3.4 9.7Z"/>
+    <path d="M3.4 9.7h17.2"/>
+    <path d="M10.1 9.7 12 20.6l1.9-10.9"/>
+    <path d="M8.2 3.6 10.1 9.7M15.8 3.6 13.9 9.7"/>
+  </symbol>
+
+  <symbol id="gi-hex" viewBox="0 0 24 24">
+    <path d="m12 2.8 8 4.6v9.2l-8 4.6-8-4.6V7.4Z"/>
+  </symbol>
+
+  <symbol id="gi-sword" viewBox="0 0 24 24">
+    <path d="M20.6 3.4h-4.2L7.2 12.6l3 3 9.2-9.2Z"/>
+    <path d="m6.4 13.4-2.6 2.6 4.2 4.2 2.6-2.6"/>
+    <path d="m3.6 20.4 1.6-1.6"/>
+  </symbol>
+
+  <symbol id="gi-shield" viewBox="0 0 24 24">
+    <path d="M12 2.8 4.8 5.8v6c0 4.4 3 7.8 7.2 9.4 4.2-1.6 7.2-5 7.2-9.4v-6Z"/>
+  </symbol>
+
+  <!-- structure silhouette: "build here". A hammer does not survive 16px. -->
+  <symbol id="gi-build" viewBox="0 0 24 24">
+    <path d="M3.4 20.6V9.4L12 3.6l8.6 5.8v11.2Z"/>
+    <path d="M9.4 20.6v-6.2h5.2v6.2"/>
+    <path d="M3.4 20.6h17.2"/>
+  </symbol>
+
+  <symbol id="gi-wrench" viewBox="0 0 24 24">
+    <path d="M15.4 3.4a5.6 5.6 0 0 0-5 8.1l-6.6 6.6a2.1 2.1 0 0 0 3 3l6.6-6.6a5.6 5.6 0 0 0 6.9-7.4l-3.2 3.2-2.9-.6-.6-2.9 3.2-3.2a5.6 5.6 0 0 0-1.4-.2Z"/>
+  </symbol>
+
+  <symbol id="gi-target" viewBox="0 0 24 24">
+    <circle cx="12" cy="12" r="8.4"/>
+    <circle cx="12" cy="12" r="4"/>
+    <path d="M12 1.6v3.4M12 19v3.4M1.6 12h3.4M19 12h3.4"/>
+  </symbol>
+
+  <symbol id="gi-bolt" viewBox="0 0 24 24">
+    <path d="M13.6 2.4 4.8 13.6h6.2l-.6 8 8.8-11.2h-6.2Z"/>
+  </symbol>
+
+  <symbol id="gi-globe" viewBox="0 0 24 24">
+    <circle cx="12" cy="12" r="8.6"/>
+    <path d="M3.4 12h17.2"/>
+    <path d="M12 3.4a13.2 13.2 0 0 1 0 17.2 13.2 13.2 0 0 1 0-17.2Z"/>
+  </symbol>
+
+  <symbol id="gi-flask" viewBox="0 0 24 24">
+    <path d="M9.6 3.2v6.2L4.4 18a2 2 0 0 0 1.7 3h11.8a2 2 0 0 0 1.7-3l-5.2-8.6V3.2"/>
+    <path d="M8.4 3.2h7.2"/>
+    <path d="M7.2 14.8h9.6"/>
+  </symbol>
+
+  <!-- ══ DECORATIVE MARKS ═══════════════════════════════════════════ -->
+
+  <symbol id="gi-corner" viewBox="0 0 24 24">
+    <path d="M2.4 9.6V4a1.6 1.6 0 0 1 1.6-1.6h5.6"/>
+  </symbol>
+
+  <symbol id="gi-chevrons" viewBox="0 0 24 24">
+    <path d="m5.4 6.4 5 5.6-5 5.6M12.6 6.4l5 5.6-5 5.6"/>
+  </symbol>
+
+  <symbol id="gi-hazard" viewBox="0 0 24 24">
+    <path class="solid" d="M2 16.4 8.4 4h3.2L5.2 16.4Zm7.2 0L15.6 4h3.2l-6.4 12.4Zm7.2 0L22.8 4H24v3.6l-4.6 8.8Z"/>
+    <path d="M2 19.6h20"/>
+  </symbol>
+
+  <symbol id="gi-serial" viewBox="0 0 24 24">
+    <path d="M3.4 5.6v12.8M6.2 5.6v12.8M9.6 5.6v12.8M12.4 5.6v12.8M15.8 5.6v12.8M18.6 5.6v12.8M21.4 5.6v12.8"/>
+  </symbol>
+</svg>
