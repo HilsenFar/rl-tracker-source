@@ -3363,6 +3363,7 @@ const T = LANG === 'en' ? {
   curve: 'SPEED THROUGH THE MATCH', mine: 'your goals', them: 'theirs',
   clickNums: 'click to see the numbers',
   win: 'WIN', loss: 'LOSS', source: 'SOURCE: ', privateTag: 'private · not counted', guestTag: 'guest: ',
+  mutatorTag: 'unlimited boost · boost/distance/touch power not measured',
   sessionRep: 'SESSION REPORT', fullRep: 'FULL REPORT: ',
   pending: 'Measured once the match is live.',
   focus: 'TODAY’S FOCUS', weekly: 'WEEKLY PROGRESS',
@@ -3458,6 +3459,7 @@ const T = LANG === 'en' ? {
   curve: 'FART GENNEM KAMPEN', mine: 'dine mål', them: 'deres',
   clickNums: 'klik for at se tallene',
   win: 'SEJR', loss: 'NEDERLAG', source: 'KILDE: ', privateTag: 'privat · tæller ikke', guestTag: 'gæst: ',
+  mutatorTag: 'ubegrænset boost · boost, afstand og slagkraft ikke målt',
   sessionRep: 'SESSION-RAPPORT', fullRep: 'FULD RAPPORT: ',
   pending: 'Måles når kampen er i gang.',
   focus: 'DAGENS FOKUS', weekly: 'UGENS FREMGANG',
@@ -3930,6 +3932,7 @@ function onDebrief(d){
   const res = d.match.result === 'W' ? T.win + ' ' : d.match.result === 'L' ? T.loss + ' ' : '';
   $('dcMeta').textContent = res + myScoreStr(d.match) + ' · ' + (d.match.playlist || '') + kindTag(d.match) + guestTag(d)
     + (d.match.private ? ' · ' + T.privateTag : '')          // private lobby: shown, never measured
+    + mutTag(d.match)                                        // unlimited boost: counted, boost/distance not measured
     + (d.collecting ? ' · baseline ' + d.baselineN + '/10' : '');
   const cv = curveHTML(d.curve);
   $('dcCurve').innerHTML = cv;
@@ -4241,13 +4244,19 @@ function pvFetch(u){ return fetch(u).then(r => r.ok ? r.json() : null); }
  * does not know, and says nothing rather than guessing. */
 /* Guest mode (19/8): a card about someone other than the owner says so. */
 function guestTag(d){ return d && d.coachee && d.coachee.guest ? ' · ' + T.guestTag + (d.coachee.name || '') + (d.seeded ? ' · ' + T.seededTag : '') : ''; }
+/* Mutators read off the match by the engine (6/9): the card says so wherever
+ * it names the match, because the tape is missing its boost and movement rows
+ * on purpose — the page never decides that, it only prints the engine's word. */
+function mutTag(m){
+  return m && Array.isArray(m.mutators) && m.mutators.indexOf('unlimited_boost') >= 0 ? ' · ' + T.mutatorTag : '';
+}
 function kindTag(m){
   const k = m && m.matchKind;
   return k === 'ranked' || k === 'tournament' || k === 'rumble' || k === 'private' ? ' · ' + k : '';   // 'private' only reaches here on a guest card (the owner's private lobbies take the privateCard path)
 }
 function pvMatchMeta(d){
   const res = d.match.result === 'W' ? T.win + ' ' : d.match.result === 'L' ? T.loss + ' ' : '';
-  return res + myScoreStr(d.match) + ' · ' + (d.match.playlist || '') + kindTag(d.match) + (d.match.private ? ' · ' + T.privateTag : '') + guestTag(d);
+  return res + myScoreStr(d.match) + ' · ' + (d.match.playlist || '') + kindTag(d.match) + (d.match.private ? ' · ' + T.privateTag : '') + mutTag(d.match) + guestTag(d);
 }
 
 function pvCoachHTML(){
@@ -5784,7 +5793,7 @@ function debriefCard(){
   const res = d.match.result === 'W' ? '<span style="color:var(--live)">' + T.win + '</span> '
             : d.match.result === 'L' ? '<span style="color:var(--bad)">' + T.loss + '</span> ' : '';
   const head = '<div class="bdd-head">' + gi('film') + 'DIRECTOR · DEBRIEF'
-    +   '<span class="bdd-pl">' + esc(d.match.playlist || '') + esc(kindTag(d.match)) + (d.match.private ? ' · ' + esc(T.privateTag) : '') + esc(guestTag(d)) + (d.collecting ? ' · baseline ' + d.baselineN + '/10' : '')
+    +   '<span class="bdd-pl">' + esc(d.match.playlist || '') + esc(kindTag(d.match)) + (d.match.private ? ' · ' + esc(T.privateTag) : '') + esc(mutTag(d.match)) + esc(guestTag(d)) + (d.collecting ? ' · baseline ' + d.baselineN + '/10' : '')
     +     (live.ownRankLine ? ' · <span class="num">' + esc(live.ownRankLine) + '</span>' : '') + '</span>'
     +   '<span class="bdd-score num">' + res + esc(myScoreStr(d.match)) + '</span></div>';
   // Every surface waits for the label, not just the one with the mouse on it.

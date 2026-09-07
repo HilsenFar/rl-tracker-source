@@ -854,7 +854,7 @@ try{
  * besked på boardet, aldrig selv-opdatering. Anonymt kald; slås fra med
  * "updateCheck": false i director-ai.json eller UPDATE_CHECK=0.
  * Logik: director/update-check.js. */
-const APP_VERSION = '2026.09.04';
+const APP_VERSION = '2026.09.06.1';
 let updateCheck = null;
 try{
   let updOff = process.env.UPDATE_CHECK === '0';

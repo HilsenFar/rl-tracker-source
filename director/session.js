@@ -151,13 +151,18 @@ function onMatch(ev){
   // Keep the PRE-match baseline the debrief was judged against. Reading
   // profile.json at report time would compare the session with a baseline
   // the session has already been folded into (EWMA), understating every delta.
+  const match = debrief.match || {};
+  // mutators read off the match (6/9): the engine leaves every boostBound
+  // metric absent from the card — and a card written before a metric was
+  // flagged (touch power, evening of 6/9) is filtered here by the registry as
+  // it stands NOW, so no session number ever rests on one
+  const mutators = Array.isArray(match.mutators) ? match.mutators.slice() : [];
   const metrics = {};
   for (const s of debrief.metrics || [])
-    if (s && Number.isFinite(s.value))
+    if (s && Number.isFinite(s.value) && !M.blockedBy(s.id, mutators))
       metrics[s.id] = { v: s.value,
         b: s.baseline && Number.isFinite(s.baseline.mean) ? s.baseline.mean : null,
         bn: s.baseline && Number.isFinite(s.baseline.n) ? s.baseline.n : 0 };   // baseline maturity
-  const match = debrief.match || {};
   state.open.matches.push({
     file: ev.file || null,
     // A private lobby stays in the session (it happened, and it is shown) but
@@ -165,6 +170,8 @@ function onMatch(ev){
     // is what the row is called on the page.
     private: !!match.private,
     matchType: match.private ? (match.matchType || null) : null,
+    // the boostBound metrics are absent from `metrics` above; the row says why
+    mutators,
     // the BUCKET the debrief measured against ('3v3', '3v3 Tournament', …) —
     // cards and trends below group on it; size/kind are what the game said
     // the match was (director.onDigest stamps them from metrics.bucketOf, 17/8)
@@ -216,8 +223,8 @@ function pauseEval(rows){
   if (ms.length < 3) return null;
   const pavg = a => a.reduce((x, y) => x + y, 0) / a.length;
   const h1 = ms.slice(0, Math.floor(ms.length / 2)), h2 = ms.slice(Math.ceil(ms.length / 2));
-  const hp1 = h1.map(r => mval(r.metrics && r.metrics.hit_power_avg)).filter(Number.isFinite);
-  const hp2 = h2.map(r => mval(r.metrics && r.metrics.hit_power_avg)).filter(Number.isFinite);
+  const hp1 = h1.map(r => mvalOf(r, 'hit_power_avg')).filter(Number.isFinite);
+  const hp2 = h2.map(r => mvalOf(r, 'hit_power_avg')).filter(Number.isFinite);
   const drift = hp1.length && hp2.length && pavg(hp1) > 1e-9
     ? (pavg(hp2) - pavg(hp1)) / pavg(hp1) : null;
   let lossStreak = 0;
@@ -306,6 +313,14 @@ function pauseCheck(justEndedStartIso){
 function mval(m){ return m === null || m === undefined ? null : (typeof m === 'object' ? m.v : m); }
 function mbase(m){ return m && typeof m === 'object' && Number.isFinite(m.b) ? m.b : null; }
 function mbaseN(m){ return m && typeof m === 'object' && Number.isFinite(m.bn) ? m.bn : 0; }
+/* A row's value for a metric — null when the match's mutators make the metric
+ * meaningless (metrics.blockedBy), whatever a stored row still holds: a
+ * session-state written before touch power was flagged (6/9) keeps the number,
+ * and the tilt drift must not read it. */
+function mvalOf(r, id){
+  if (!r || !r.metrics || M.blockedBy(id, r.mutators)) return null;
+  return mval(r.metrics[id]);
+}
 
 /* Recorder TCP closed after a real connection = the game was shut down. */
 function onGameDisconnect(){
@@ -323,16 +338,17 @@ function current(){
   if (!state || !state.open || !state.open.matches.length) return null;
   const open = state.open;
   const wl = { w: 0, l: 0, u: 0 };
-  let goals = 0, shots = 0, assists = 0, saves = 0, touches = 0, privateN = 0;
+  let goals = 0, shots = 0, assists = 0, saves = 0, touches = 0, privateN = 0, mutatorN = 0;
   const acc = {};                        // playlist -> id -> {vals, b, bn} (first-seen normal)
   for (const m of open.matches){
     if (m.private){ privateN++; continue; }          // shown as a row, never as a number
+    if (m.mutators && m.mutators.length) mutatorN++; // counted (W/L, kickoffs) — boost/distance/touch power absent
     if (m.result === 'W') wl.w++; else if (m.result === 'L') wl.l++; else wl.u++;
     goals += m.me.goals | 0; shots += m.me.shots | 0; assists += m.me.assists | 0;
     saves += m.me.saves | 0; touches += m.me.touches | 0;
     const byPl = acc[m.playlist] || (acc[m.playlist] = {});
     for (const id of Object.keys(m.metrics || {})){
-      const v = mval(m.metrics[id]);
+      const v = mvalOf(m, id);
       if (!Number.isFinite(v) || !M.DEFS[id]) continue;
       const a = byPl[id] || (byPl[id] = { vals: [], b: null, bn: 0 });
       a.vals.push(v);
@@ -362,12 +378,14 @@ function current(){
     schema: 'session-now/1', startedAt: open.startedAt,
     // `matches` is the COUNTED number; private lobbies are reported beside it
     matches: open.matches.length - privateN, privateMatches: privateN,
+    mutatorMatches: mutatorN,
     wl, goals, shots, assists, saves, touches,
     conversion: shots ? goals / shots : null,
     trends: trends.slice(0, 8),
     lastMatch: last ? { playlist: last.playlist, result: last.result,
       myScore: (last.myTeam === 1 ? [last.score[1], last.score[0]] : last.score).join('–'),
-      endedAt: last.endedAt, private: !!last.private, matchType: last.matchType || null } : null
+      endedAt: last.endedAt, private: !!last.private, matchType: last.matchType || null,
+      mutators: last.mutators || [] } : null
   };
 }
 
@@ -525,8 +543,14 @@ function buildReport(open, reason){
     if (r.result === 'W') pl.w++; else if (r.result === 'L') pl.l++; else pl.u++;
     pl.goals += r.me.goals; pl.shots += r.me.shots;
     pl.matches.push({ startedAt: r.startedAt, result: r.result, score: r.score,
-      myTeam: typeof r.myTeam === 'number' ? r.myTeam : 0, me: r.me });
+      myTeam: typeof r.myTeam === 'number' ? r.myTeam : 0, me: r.me, mutators: r.mutators || [] });
   }
+  // Unlimited boost (6/9): these matches COUNT (W/L, goals, first touches on
+  // kickoffs, touches, demos) but carry no boost, movement or touch-power
+  // metrics — the engine left them absent (and mvalOf refuses whatever an
+  // older row still holds), so no trend, mission, tilt drift, pack or note
+  // below can rest on one.
+  const mutatorMs = ms.filter(r => r.mutators && r.mutators.length);
   for (const k of Object.keys(playlists))
     playlists[k].conversion = playlists[k].shots ? playlists[k].goals / playlists[k].shots : null;
   const totGoals = ms.reduce((a, r) => a + r.me.goals, 0);
@@ -544,7 +568,7 @@ function buildReport(open, reason){
     const byPl = accum[pl] || (accum[pl] = {});
     for (const id of Object.keys(r.metrics)){
       if (!M.DEFS[id]) continue;
-      const v = mval(r.metrics[id]);
+      const v = mvalOf(r, id);
       if (!Number.isFinite(v)) continue;
       const a = byPl[id] || (byPl[id] = { vals: [], bases: [], baseNs: [] });
       a.vals.push(v);
@@ -588,8 +612,11 @@ function buildReport(open, reason){
   // --- tilt analysis: measured patterns only, phrased as measurements
   const sequence = ms.map(r => r.result || '?').join(' ');
   const h1 = ms.slice(0, Math.floor(ms.length / 2)), h2 = ms.slice(Math.ceil(ms.length / 2));
-  const hp1 = h1.map(r => mval(r.metrics.hit_power_avg)).filter(Number.isFinite);
-  const hp2 = h2.map(r => mval(r.metrics.hit_power_avg)).filter(Number.isFinite);
+  // Touch power is the mutator's in an unlimited-boost match (6/9): such a
+  // match keeps its place in the evening's halves but contributes no value,
+  // so a 130-power artefact in the second half can never read as "+57%".
+  const hp1 = h1.map(r => mvalOf(r, 'hit_power_avg')).filter(Number.isFinite);
+  const hp2 = h2.map(r => mvalOf(r, 'hit_power_avg')).filter(Number.isFinite);
   const drift = hp1.length && hp2.length
     ? { firstAvg: avg(hp1), secondAvg: avg(hp2),
         pct: avg(hp1) > 1e-9 ? (avg(hp2) - avg(hp1)) / avg(hp1) : 0 }
@@ -785,6 +812,10 @@ function buildReport(open, reason){
     lines[0] = lines[0].replace(/\.$/, '') + (EN()
       ? ' · ' + privateMs.length + ' private lobb' + (privateMs.length === 1 ? 'y' : 'ies') + ' shown, not counted.'
       : ' · ' + privateMs.length + ' privat' + (privateMs.length === 1 ? '' : 'e') + ' lobby' + (privateMs.length === 1 ? '' : 'er') + ' vist, ikke talt.');
+  if (mutatorMs.length)
+    lines[0] = lines[0].replace(/\.$/, '') + (EN()
+      ? ' · ' + mutatorMs.length + ' with unlimited boost — boost, distance and touch power not measured.'
+      : ' · ' + mutatorMs.length + ' med ubegrænset boost — boost, afstand og slagkraft ikke målt.');
 
   return {
     schema: 'session/1',
@@ -793,7 +824,9 @@ function buildReport(open, reason){
     url: URL_BASE + name + '.html',
     startedAt: all[0].startedAt, endedAt: all[all.length - 1].endedAt, durationMin,
     matches: ms.map(r => ({ file: r.file, playlist: r.playlist, score: r.score, result: r.result,
-      startedAt: r.startedAt, endedAt: r.endedAt, me: r.me })),
+      startedAt: r.startedAt, endedAt: r.endedAt, me: r.me, mutators: r.mutators || [] })),
+    // counted, but with no boost/movement/touch-power numbers (6/9) — see mutatorMs
+    mutatorMatches: mutatorMs.length,
     // shown, never counted (user's decision 15/8): what the evening also held
     privateMatches: privateMs.map(r => ({ file: r.file, playlist: r.playlist, matchType: r.matchType || null,
       score: r.score, myTeam: typeof r.myTeam === 'number' ? r.myTeam : 0, result: r.result,
@@ -839,7 +872,8 @@ function renderHTML(r){
   const plCards = Object.keys(r.playlists).map(k => {
     const pl = r.playlists[k];
     const rows = pl.matches.map(m =>
-      '<tr><td>' + hhmm(m.startedAt) + '</td>' +
+      '<tr><td>' + hhmm(m.startedAt) +
+      (M.hasMutator(m.mutators) ? ' <span class="tag">' + esc(M.mutatorLabel(m.mutators, en)) + '</span>' : '') + '</td>' +
       '<td class="' + (m.result === 'W' ? 'W' : m.result === 'L' ? 'L' : 'muted') + '">' + (m.result || '–') + '</td>' +
       '<td class="num">' + myScore(m) + '</td>' +
       '<td class="num">' + m.me.goals + '</td><td class="num">' + m.me.assists + '</td>' +
@@ -862,6 +896,14 @@ function renderHTML(r){
     '<td class="' + (m.result === 'W' ? 'W' : m.result === 'L' ? 'L' : 'muted') + '">' + (m.result || '–') + '</td>' +
     '<td class="num">' + myScore(m) + '</td>' +
     '<td class="num">' + m.me.goals + '</td><td class="num">' + m.me.shots + '</td><td class="num">' + m.me.touches + '</td></tr>').join('');
+  // Unlimited boost (6/9): named, not hidden — the rows above carry the tag,
+  // this says what the tag means for the numbers
+  const mutN = r.mutatorMatches | 0;
+  const mutNote = mutN
+    ? '<p class="muted" style="font-size:12.5px">' + (en
+      ? mutN + (mutN === 1 ? ' match' : ' matches') + ' with <strong>unlimited boost</strong> (mutator): boost, distance and touch power are not measured for ' + (mutN === 1 ? 'it' : 'them') + ' — with the boost pinned at 100 the car is always at full speed, so a hard touch is the mutator’s, not yours — and enter neither trends, missions, the touch-power drift nor your normal. W/L, goals, first touches on kickoffs, touches and demos still count.'
+      : mutN + (mutN === 1 ? ' kamp' : ' kampe') + ' med <strong>ubegrænset boost</strong> (mutator): boost, afstand og slagkraft er ikke målt for ' + (mutN === 1 ? 'den' : 'dem') + ' — med boosten låst på 100 kører bilen altid i fuld fart, så et hårdt touch er mutatorens, ikke dit — og indgår hverken i trends, missioner, touchkraft-driften eller din normal. W/L, mål, førstetouch på kickoffs, touches og demoer tæller stadig.') + '</p>'
+    : '';
   const privCard = privRows
     ? '<div class="card"><div class="plhead"><strong>' + (en ? 'Private lobbies' : 'Private lobbyer') + '</strong><span class="chip">' + (en ? 'shown, not counted' : 'vist, ikke talt') + '</span></div>' +
       '<div class="scroll"><table><thead><tr><th>Start</th><th>Playlist</th><th>Type</th><th>Res.</th><th>Score</th><th>' + (en ? 'Goals' : 'Mål') + '</th><th>' + (en ? 'Shots' : 'Skud') + '</th><th>Touch</th></tr></thead>' +
@@ -982,8 +1024,9 @@ function renderHTML(r){
       '<span class="chip">' + durText + '</span>' +
       '<span class="chip">' + r.totals.goals + (en ? ' goals / ' : ' mål / ') + r.totals.shots + (en ? ' shots' : ' skud') +
       (r.totals.conversion !== null ? ' · ' + Math.round(r.totals.conversion * 100) + '%' : '') + '</span>' +
+      (mutN ? '<span class="chip">' + mutN + ' × ' + esc(M.mutatorLabel(['unlimited_boost'], en)) + '</span>' : '') +
     '</div>\n' + stopBanner +
-    '<h2>' + (en ? 'Summary per playlist' : 'Resumé pr. playlist') + '</h2>\n' + plCards + privCard +
+    '<h2>' + (en ? 'Summary per playlist' : 'Resumé pr. playlist') + '</h2>\n' + plCards + mutNote + privCard +
     '<h2>' + (en ? 'Metric trends against your normal' : 'Metrik-trends mod din normal') + '</h2>\n' +
     '<div class="card"><div class="scroll"><table><thead>' +
     '<tr><th>' + (en ? 'Metric' : 'Metrik') + '</th><th>Playlist</th><th class="num">' + (en ? 'Session average' : 'Session-snit') + '</th><th class="num">Normal</th><th class="num">Δ</th><th class="num">' + (en ? 'Matches' : 'Kampe') + '</th></tr>' +

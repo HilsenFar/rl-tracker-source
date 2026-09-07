@@ -102,6 +102,12 @@ function isoWeekOf(day){
 
 function weekOfIso(iso){ const d = playDay(iso); return d ? isoWeekOf(d) : null; }
 function currentWeek(){ return isoWeekOf(playDay(new Date().toISOString())); }
+/* The instant a play-week is over: DAY_START_HOUR on the Monday after wk.to,
+ * local time — the same boundary playDay() draws, seen from the other side. */
+function weekEndIso(wk){
+  const [y, m, d] = wk.to.split('-').map(Number);
+  return new Date(y, m - 1, d + 1, DAY_START_HOUR, 0, 0, 0).toISOString();
+}
 
 /* ---------------- loading (reports/ is the archive) ---------------- */
 
@@ -353,9 +359,14 @@ function matchesInWeek(debriefs, wk){
   for (const d of debriefs){
     const day = playDay(d.at);
     if (!day || day < wk.from || day > wk.to) continue;
+    // mutators read off the match (6/9): counted in W/L, absent from every
+    // boost/movement/touch-power number by the engine's own gate — and a card
+    // written before a metric was flagged is filtered by the registry as it
+    // stands now (touch power joined the evening of 6/9)
+    const mutators = Array.isArray(d.match.mutators) ? d.match.mutators : [];
     const metrics = {};
     for (const m of d.metrics || [])
-      if (m && M.DEFS[m.id] && Number.isFinite(m.value))
+      if (m && M.DEFS[m.id] && Number.isFinite(m.value) && !M.blockedBy(m.id, mutators))
         metrics[m.id] = { v: m.value,
                           b: m.baseline && Number.isFinite(m.baseline.mean) ? m.baseline.mean : null,
                           bn: m.baseline && Number.isFinite(m.baseline.n) ? m.baseline.n : 0 };
@@ -365,6 +376,7 @@ function matchesInWeek(debriefs, wk){
       // private lobbies ride along as rows and are filtered out of every number
       // by buildReport (user's decision 15/8): shown, never counted
       private: !!d.match.private, matchType: d.match.matchType || null,
+      mutators,
       // `playlist` is the BUCKET the match was measured against (the debrief's
       // own word for it, so trends group exactly as the coach judged); size and
       // kind are what the game said it was — the distribution is built on those
@@ -450,7 +462,15 @@ function buildTrends(ms, prevMs){
  * Two kinds of event move the card: a session report landing and a weekly
  * report landing (its focusNext opens the week — the M4 coupling, 17/8). A
  * report that yields no focus leaves the previous one standing, exactly as the
- * board keeps its card when nothing new is broadcast. */
+ * board keeps its card when nothing new is broadcast.
+ *
+ * The window is per PLAYLIST (6/9-2026). A focus is a promise about one
+ * playlist's matches, so only a later focus in the SAME playlist can end it —
+ * or the end of the play-week it was set in (Monday 06:00), because each week
+ * is judged in its own report. A card that moves to a 2v2 metric says nothing
+ * about the 3v3 focus that stood before it; until 6/9 it closed that window
+ * anyway, and three 3v3 matches played straight into a "2v2 window" counted
+ * nowhere — the week's focus read "not measurable" with the proof on disk. */
 function focusTimeline(sessions, weeklies){
   const events = []
     .concat((sessions || []).map(s => ({ t: Date.parse(s.at), kind: 's', r: s })))
@@ -458,27 +478,44 @@ function focusTimeline(sessions, weeklies){
     .filter(e => Number.isFinite(e.t))
     .sort((a, b) => a.t - b.t);
   const out = [];
+  const lanes = new Map();          // playlist -> the focus in force there
+  const weekOfEntry = new Map();    // entry -> play-week it was set in
   let session = null, weekly = null;
   for (const e of events){
     if (e.kind === 's') session = e.r; else weekly = e.r;
     let f = null;
     try{ f = focusEngine.pick(session, weekly); }catch{ f = null; }
     if (!f) continue;
-    const prev = out[out.length - 1];
-    // The same focus surviving two reports is one continuous attempt, not two
-    if (prev && prev.metricId === f.metricId && prev.playlist === f.playlist){
+    const lane = f.playlist || null;
+    const wk = weekOfIso(e.r.at);
+    const prev = lanes.get(lane) || null;
+    // The same focus surviving two reports is one continuous attempt, not two —
+    // within one week. Carried across Monday 06:00 it is a new attempt, judged
+    // in the new week's report.
+    if (prev && prev.metricId === f.metricId && weekOfEntry.get(prev) === (wk ? wk.key : null)){
       if (e.kind === 's') prev.sessions.push(e.r.name || null);
       continue;
     }
-    out.push({ metricId: f.metricId, playlist: f.playlist, label: f.label, direction: f.direction,
-               target: f.target, targetText: f.targetText, setAt: e.r.at,
-               source: f.source || 'session', weekKey: f.weekKey || null,
-               // what the focus was reacting to: the session's (or week's) own average
-               triggerValue: Number.isFinite(f.triggerValue) ? f.triggerValue : null,
-               sessions: e.kind === 's' ? [e.r.name || null] : [],
-               sessionUrl: (f.session && f.session.url) || e.r.url || null });
+    const entry = { metricId: f.metricId, playlist: f.playlist, label: f.label, direction: f.direction,
+                    target: f.target, targetText: f.targetText, setAt: e.r.at,
+                    source: f.source || 'session', weekKey: f.weekKey || null,
+                    // what the focus was reacting to: the session's (or week's) own average
+                    triggerValue: Number.isFinite(f.triggerValue) ? f.triggerValue : null,
+                    sessions: e.kind === 's' ? [e.r.name || null] : [],
+                    sessionUrl: (f.session && f.session.url) || e.r.url || null,
+                    until: null };
+    if (prev && prev.until === null) prev.until = e.r.at;      // replaced in its own playlist
+    lanes.set(lane, entry);
+    weekOfEntry.set(entry, wk ? wk.key : null);
+    out.push(entry);
   }
-  for (let i = 0; i < out.length; i++) out[i].until = i + 1 < out.length ? out[i + 1].setAt : null;
+  // ...and never past the week it was set in
+  for (const x of out){
+    const wk = weekOfIso(x.setAt);
+    if (!wk) continue;
+    const end = weekEndIso(wk);
+    if (x.until === null || Date.parse(x.until) > Date.parse(end)) x.until = end;
+  }
   return out;
 }
 
@@ -490,10 +527,10 @@ function proofFor(timeline, allMatches, wk){
      * The week bound is load-bearing in both directions. Without an upper
      * bound, a focus still in force (until === null) pulls in every later
      * match, so last week's report would silently credit progress made this
-     * week — and would say something different every time it was rebuilt. With
-     * it, a focus set on a Sunday evening reads "ikke målbart" here and gets
-     * its verdict in next week's report, where the matches actually are. Each
-     * week reports its own play. */
+     * week — and would say something different every time it was rebuilt.
+     * focusTimeline() now ends every window with its own play-week (6/9), so a
+     * focus set on a Sunday evening reads "ikke målbart" here and is not
+     * carried into next week's report. Each week reports its own play. */
     const after = allMatches.filter(m =>
       m.playlist === f.playlist &&
       m.day >= wk.from && m.day <= wk.to &&
@@ -672,9 +709,15 @@ function buildReport(wk, opts){
    * engine total (dist_per_touch × touches) and is only reported when EVERY
    * match in the week carries the metric — a partial sum shown as "the week's
    * distance" would be a wrong number with a confident face. */
+  // Unlimited boost (6/9): those matches carry no speed or distance at all —
+  // not a partial sum, a different sport — so the week's extremes are read
+  // over the matches that could be measured, and the chip says how many
+  // could not.
+  const mutatorMs = ms.filter(r => r.mutators && r.mutators.length);
+  const measurable = ms.filter(r => !(r.mutators && r.mutators.length));
   let topSpeed = null, hardestHit = null, distSum = 0,
-      distComplete = ms.length > 0 && M.UNITS[M.currentUnit()] && M.UNITS[M.currentUnit()].dist === 'm';
-  for (const r of ms){
+      distComplete = measurable.length > 0 && M.UNITS[M.currentUnit()] && M.UNITS[M.currentUnit()].dist === 'm';
+  for (const r of measurable){
     const sp = r.metrics.speed_max, hp = r.metrics.hit_power_max, dt = r.metrics.dist_per_touch;
     if (sp && (topSpeed === null || sp.v > topSpeed)) topSpeed = sp.v;
     if (hp && (hardestHit === null || hp.v > hardestHit)) hardestHit = hp.v;
@@ -798,6 +841,10 @@ function buildReport(wk, opts){
     lines[0] = lines[0].replace(/\.$/, '') + (EN()
       ? ' · ' + privateMs.length + ' private lobb' + (privateMs.length === 1 ? 'y' : 'ies') + ' shown, not counted.'
       : ' · ' + privateMs.length + ' privat' + (privateMs.length === 1 ? '' : 'e') + ' lobby' + (privateMs.length === 1 ? '' : 'er') + ' vist, ikke talt.');
+  if (mutatorMs.length)
+    lines[0] = lines[0].replace(/\.$/, '') + (EN()
+      ? ' · ' + mutatorMs.length + ' with unlimited boost — boost, distance and touch power not measured.'
+      : ' · ' + mutatorMs.length + ' med ubegrænset boost — boost, afstand og slagkraft ikke målt.');
 
   const name = 'weekly-' + wk.key;
   return {
@@ -807,7 +854,9 @@ function buildReport(wk, opts){
     url: '/reports/' + name + '.html',
     totals: { matches: ms.length, days: dayList.length, sessions: weekSessions.length,
               wl, goals, shots, assists, saves, touches, conversion,
-              private: privateMs.length },
+              private: privateMs.length,
+              // counted, but with no boost/movement numbers (6/9)
+              mutators: mutatorMs.length },
     // shown, never counted (user's decision 15/8)
     privateMatches: privateMs.map(r => ({ at: r.at, day: r.day, file: r.file, playlist: r.playlist,
       matchType: r.matchType, result: r.result, score: r.score, myTeam: r.myTeam, me: r.me })),
@@ -912,7 +961,8 @@ function summary(r){
     totals: { matches: r.totals.matches, days: r.totals.days,
               wl: r.totals.wl.w + '-' + r.totals.wl.l, goals: r.totals.goals, shots: r.totals.shots,
               conversion: r.totals.conversion !== undefined ? r.totals.conversion : null,
-              private: r.totals.private | 0 },              // shown, not counted
+              private: r.totals.private | 0,                // shown, not counted
+              mutators: r.totals.mutators | 0 },            // counted, boost/distance/touch power not measured (6/9)
     extremes: r.extremes || null,
     // "3v3: 8 ranked · 3 turnering · 50 uden playlist-id" — null on reports
     // stored before the field existed
@@ -1010,7 +1060,14 @@ function renderHTML(r){
   ].concat(t.private ? [EN
       ? t.private + ' private ' + (t.private === 1 ? 'lobby' : 'lobbies') + ' (not counted)'
       : t.private + ' privat' + (t.private === 1 ? '' : 'e') + ' lobby' + (t.private === 1 ? '' : 'er') + ' (ikke talt)'] : [])
+   .concat(t.mutators ? [t.mutators + ' × ' + M.mutatorLabel(['unlimited_boost'], EN)] : [])
    .map(c => '<span class="chip">' + esc(c) + '</span>').join('');
+  // Unlimited boost (6/9): named where the numbers are, not hidden
+  const mutNote = t.mutators
+    ? '<p class="muted" style="font-size:12.5px">' + (EN
+      ? t.mutators + (t.mutators === 1 ? ' match' : ' matches') + ' this week ran with <strong>unlimited boost</strong> (mutator): boost, distance and touch power are not measured for ' + (t.mutators === 1 ? 'it' : 'them') + ' — with the boost pinned at 100 the car is always at full speed, so a hard touch is the mutator’s — and enter neither trends, evidence, extremes nor your normal. W/L, goals, first touches on kickoffs, touches and demos count as usual.'
+      : t.mutators + (t.mutators === 1 ? ' kamp' : ' kampe') + ' i ugen kørte med <strong>ubegrænset boost</strong> (mutator): boost, afstand og slagkraft er ikke målt for ' + (t.mutators === 1 ? 'den' : 'dem') + ' — med boosten låst på 100 kører bilen altid i fuld fart, så et hårdt touch er mutatorens — og indgår hverken i trends, bevis, ekstremer eller din normal. W/L, mål, førstetouch på kickoffs, touches og demoer tæller som normalt.') + '</p>'
+    : '';
   const privRows = (r.privateMatches || []).map(m => {
     const s = Array.isArray(m.score) ? m.score : [0, 0];
     const my = m.myTeam === 1 ? s[1] + '–' + s[0] : s[0] + '–' + s[1];
@@ -1019,14 +1076,14 @@ function renderHTML(r){
       '<td class="' + (m.result === 'W' ? 'W' : m.result === 'L' ? 'L' : 'muted') + '">' + (m.result || '–') + '</td>' +
       '<td class="num">' + my + '</td><td class="num">' + ((m.me && m.me.goals) | 0) + '</td><td class="num">' + ((m.me && m.me.shots) | 0) + '</td></tr>';
   }).join('');
-  const privHtml = privRows
+  const privHtml = mutNote + (privRows
     ? '<div class="card"><div class="plhead"><strong>' + (EN ? 'Private lobbies' : 'Private lobbyer') + '</strong><span class="chip">' + (EN ? 'shown, not counted' : 'vist, ikke talt') + '</span></div>' +
       '<div class="scroll"><table><thead><tr><th>' + (EN ? 'Played' : 'Spillet') + '</th><th>Playlist</th><th>Type</th><th>Res.</th><th class="num">Score</th><th class="num">' + (EN ? 'Goals' : 'Mål') + '</th><th class="num">' + (EN ? 'Shots' : 'Skud') + '</th></tr></thead>' +
       '<tbody>' + privRows + '</tbody></table></div>' +
       '<p class="muted" style="font-size:12.5px">' + (EN
         ? 'A private lobby is whoever the host invited, at whatever level the host chose — it enters neither W/L, trends, evidence nor your normal.'
         : 'En privat lobby er hvem værten inviterede, på det niveau værten valgte — den indgår hverken i W/L, trends, bevis eller din normal.') + '</p></div>\n'
-    : '';
+    : '');
 
   const maxDay = Math.max(1, ...r.days.map(d => d.n));
   const dayRows = r.days.map(d =>
@@ -1335,5 +1392,5 @@ function renderHTML(r){
 
 module.exports = { init, ensure, current, latest, latestSummary, summary, onRank, rankHistory, renderHTML,
                    applyNarrative, buildReport, currentWeek, isoWeekOf, playDay,
-                   matchesInWeek, buildTrends, proofFor,   // pure; exported for director/test
+                   matchesInWeek, buildTrends, proofFor, focusTimeline, weekEndIso,   // pure; exported for director/test
                    MIN_WEEK_MATCHES, PROOF_MIN_MATCHES };

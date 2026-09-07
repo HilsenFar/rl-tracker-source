@@ -32,7 +32,7 @@ rem nedenfor har i forvejen peget paa server.log — nu findes filen ogsaa.
 rem Forrige koersel gemmes, saa en genstart ikke sletter det man leder efter.
 if exist server.log move /y server.log server.prev.log >nul 2>nul
 if exist RLTrackerServer.exe (
-  start "" /min cmd /c "RLTrackerServer.exe > server.log 2>&1"
+  start "" /min cmd /c ".\RLTrackerServer.exe > server.log 2>&1"
   goto wait
 )
 where node >nul 2>nul

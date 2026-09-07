@@ -295,6 +295,112 @@ function kindLabel(kind, en){
   return (en ? enW : da)[kind] || kind;
 }
 
+/* ---------------- mutators (6/9-2026) ----------------
+ * The feed never names a mutator, and the digest has no field for one — so a
+ * mutator is READ OFF the telemetry, the same way the speed unit is. The one
+ * that matters is "unlimited boost": on 5/9-2026 three automatic-tournament
+ * matches (playlist 34, NeoTokyo_Arcade / Labs_PillarWings) ran with boost
+ * pinned at 100. The engine measured 0% under 15 boost and an average of
+ * 99.6-99.95, the session report crowned boost_low_share/boost_avg "strongest"
+ * (a mutator artefact, not discipline), the EWMA normals for boost moved by
+ * fifteen points in one evening, and dist_per_touch 221/291 m — driving with
+ * infinite boost is a different sport — dragged the evening's mission target
+ * up. None of it was measured on the game the normal describes.
+ *
+ * Calibrated on the whole archive (574 matches carrying a movement record):
+ *   - every normal match spends at most 45% of its seconds at boost >= 95
+ *     (max 0.454, average never above 70.3)
+ *   - every unlimited-boost match spends >= 99.4% there, average >= 99.6
+ * The K4W blind test (rl-director/k4w-rosen-blindtest/merge.js) drew its line
+ * at an average of 95 over the old sample accumulator and called everything
+ * above it "boost-100 mode". Same line here, on the time-weighted record the
+ * boost metrics themselves are computed from (movement[].bhist / boostInt),
+ * plus the share of time at the top so that a single number cannot trip it.
+ * The seconds at kickoff spawn (33 boost) are why it is "almost" the whole
+ * match: 0.3-2.3 s per match in bin 30-35, then the mutator pins it again.
+ *
+ * What a detected mutator DOES is decided by the metric registry: every DEF
+ * marked boostBound is left absent for that match (missing, not zero — the
+ * M4b lesson), so no surface can fold, rank, praise, blame or aim at it.
+ * Bound: boost, the whole movement family, and — since the evening of 6/9 —
+ * touch power and kickoff touch power (see the DEFS comment: ball speed off a
+ * touch is car speed, and car speed is the mutator's). W/L, goals, first
+ * touches on kickoffs, touches, demos and passes still count: the mutator
+ * does not change whose touch it was. A partial (in-flight) record shorter
+ * than UNLIMITED_BOOST_MIN_SEC is not judged — early in a normal match the
+ * first 100-pad can hold the level at the top for most of a few seconds.
+ */
+const UNLIMITED_BOOST_AVG = 95;          // the blind test's line (merge.js: boostAvg0 < 95 = real play)
+const UNLIMITED_BOOST_TOP_AT = 95;       // a second counts as "at the top" from this boost level
+const UNLIMITED_BOOST_TOP_SHARE = 0.9;   // ...and this share of the measured seconds must sit there
+const UNLIMITED_BOOST_MIN_SEC = 60;      // shorter records (live meter) are not judged
+const UNLIMITED_BOOST_MIN_SAMPLES = 500; // pre-1.2.0 digests: the sample accumulator needs this many
+const MUTATOR_WORDS = {
+  unlimited_boost: { da: 'ubegrænset boost', en: 'unlimited boost' }
+};
+
+/* The tracked player's boost profile for the match, from the record the boost
+ * metrics are computed from — or, for a digest older than adapter 1.2.0, from
+ * the sample accumulator the blind test used. null when neither exists. */
+function boostProfile(digest, me){
+  if (!digest || !me) return null;
+  const mv = (digest.movement || {})[me.name];
+  if (mv && mv.sec > 0 && Array.isArray(mv.bhist) && mv.bhistW > 0){
+    let top = 0;
+    for (let i = 0; i < mv.bhist.length; i++){
+      const lo = i * mv.bhistW, hi = lo + mv.bhistW;
+      if (lo >= UNLIMITED_BOOST_TOP_AT) top += mv.bhist[i];
+      else if (hi > UNLIMITED_BOOST_TOP_AT) top += mv.bhist[i] * ((hi - UNLIMITED_BOOST_TOP_AT) / mv.bhistW);   // part-bin
+    }
+    return { source: 'movement', sec: mv.sec, avg: mv.boostInt / mv.sec, topShare: top / mv.sec };
+  }
+  const bo = (digest.boost || {})[me.name];
+  if (bo && bo.samples > 0)
+    return { source: 'samples', sec: null, samples: bo.samples, avg: bo.sum / bo.samples, topShare: null, low: bo.low | 0 };
+  return null;
+}
+
+/* digest -> ['unlimited_boost'] or []. Pure, no clock. */
+function mutatorsOf(digest, me){
+  const bp = boostProfile(digest, me);
+  if (!bp) return [];
+  if (bp.source === 'movement'){
+    if (bp.sec < UNLIMITED_BOOST_MIN_SEC) return [];
+    return bp.avg >= UNLIMITED_BOOST_AVG && bp.topShare >= UNLIMITED_BOOST_TOP_SHARE ? ['unlimited_boost'] : [];
+  }
+  // sample accumulator only (no boost metrics exist for these digests anyway,
+  // so this can only ever LABEL a match): the blind test's line, and not a
+  // single sample under BOOST_LOW_AT
+  if (bp.samples < UNLIMITED_BOOST_MIN_SAMPLES) return [];
+  return bp.avg >= UNLIMITED_BOOST_AVG && bp.low === 0 ? ['unlimited_boost'] : [];
+}
+
+/* Is this metric meaningless under these mutators? Decided by the registry
+ * (DEFS[id].boostBound), never by a list kept elsewhere. */
+function blockedBy(id, mutators){
+  if (!Array.isArray(mutators) || !mutators.length) return false;
+  const d = DEFS[id];
+  return !!(d && d.boostBound && mutators.includes('unlimited_boost'));
+}
+function hasMutator(mutators, m){ return Array.isArray(mutators) && mutators.includes(m || 'unlimited_boost'); }
+/* The game-facing word(s): "ubegrænset boost" / "unlimited boost". */
+function mutatorLabel(mutators, en){
+  if (!Array.isArray(mutators) || !mutators.length) return '';
+  return mutators.map(m => (MUTATOR_WORDS[m] || { da: m, en: m })[en ? 'en' : 'da']).join(' + ');
+}
+/* The honest sentence every surface prints instead of hiding the match. */
+function mutatorNote(mutators, en){
+  if (!hasMutator(mutators)) return '';
+  return en ? 'unlimited boost — boost, distance and touch power not measured'
+            : 'ubegrænset boost — boost, afstand og slagkraft ikke målt';
+}
+/* The metric ids a match under these mutators carries no number for — for a
+ * surface that reads a STORED card (session, weekly) and must not trust a
+ * value a card written before the flag landed still holds. */
+function blockedIds(mutators){
+  return Object.keys(DEFS).filter(id => blockedBy(id, mutators));
+}
+
 /* A digest is a coachable match when the tracked player was in it, both
  * teams existed and at least one kickoff was observed. This drops solo
  * freeplay AND the post-game artifacts (same guid, zero kickoffs) that the
@@ -338,15 +444,28 @@ function resultOf(digest, myTeam){
 const DEFS = {
   kickoff_team_ft:   { label: 'holdets førstetouch på kickoffs', direction: 1,  fmt: 'pct',  minSamples: 3 },
   kickoff_self_ft:   { label: 'dine førstetouch på kickoffs',    direction: 1,  fmt: 'pct',  minSamples: 3 },
-  kickoff_self_speed:{ label: 'kickoff-touchkraft',              direction: 1,  fmt: 'int',  minSamples: 2 },
-  hit_power_avg:     { label: 'touchkraft (snit)',               direction: 1,  fmt: 'int',  minSamples: 8 },
-  hit_power_max:     { label: 'hårdeste touch',                  direction: 1,  fmt: 'int',  minSamples: 8 },
+  // boostBound (6/9, the same evening the guard landed): the speed of the
+  // ball off a touch scales with the speed of the car INTO it, and with boost
+  // pinned at 100 the car is always at full speed. Measured in 2v2 that
+  // evening: hit_power_max 265 / hit_power_avg 130 / kickoff_self_speed 159 in
+  // the unlimited-boost match against 124-134 / 58-72 / 97-106 in the three
+  // normal ones. The session report crowned both "strongest" (+28%, +21%) and
+  // read a +57% "touch power drift" that was the mutator sitting in the second
+  // half of the evening, not tilt; the debrief praised a kickoff touch of 159
+  // against a normal of 94. None of it was the player's power. First touches,
+  // touches, demos and passes still count: the mutator does not change WHOSE
+  // touch it was, only how hard it went.
+  kickoff_self_speed:{ label: 'kickoff-touchkraft',              direction: 1,  fmt: 'int',  minSamples: 2, boostBound: true },
+  hit_power_avg:     { label: 'touchkraft (snit)',               direction: 1,  fmt: 'int',  minSamples: 8, boostBound: true },
+  hit_power_max:     { label: 'hårdeste touch',                  direction: 1,  fmt: 'int',  minSamples: 8, boostBound: true },
   off_touch_share:   { label: 'touches på modstanderhalvdelen',  direction: 1,  fmt: 'pct',  minSamples: 8 },
   // minSamples is in SECONDS of measured play from adapterVersion 1.2.0 — the
   // old definition counted frames, where 300 meant three seconds. Same number,
   // very different gate; 120 s is half a short match, matching the M4b metrics.
-  boost_low_share:   { label: 'tid under ' + BOOST_LOW_AT + ' boost', direction: -1, fmt: 'pct', minSamples: 120 },
-  boost_avg:         { label: 'boost-niveau (snit)',             direction: 1,  fmt: 'int',  minSamples: 120 },
+  // boostBound (6/9): meaningless under the unlimited-boost mutator — left
+  // absent for such a match (see mutatorsOf), never folded, ranked or aimed at
+  boost_low_share:   { label: 'tid under ' + BOOST_LOW_AT + ' boost', direction: -1, fmt: 'pct', minSamples: 120, boostBound: true },
+  boost_avg:         { label: 'boost-niveau (snit)',             direction: 1,  fmt: 'int',  minSamples: 120, boostBound: true },
   touches_per_min:   { label: 'touches pr. minut',               direction: 1,  fmt: 'dec1', minSamples: 1 },
   // noPct: a signed count centred near zero — percentage change against a
   // baseline like 0.28 explodes ("-615%") and would hijack every ranking.
@@ -377,24 +496,27 @@ const DEFS = {
    * 120 s means half a short match, which is what it takes before a share is
    * anything but noise.
    * --- */
-  speed_avg:         { label: 'gennemsnitsfart',                 direction: 1,  fmt: 'dec1', minSamples: 120, unit: 'speed', coachable: false },
-  speed_max:         { label: 'højeste fart',                    direction: 1,  fmt: 'dec1', minSamples: 120, unit: 'speed', coachable: false },
-  supersonic_share:  { label: 'tid i supersonic',                direction: 1,  fmt: 'pct',  minSamples: 120, coachable: false },
+  // Every movement metric is boostBound (6/9): with boost pinned at 100 the
+  // car is driven in a different physics regime — speed, air time, distance
+  // and even the within-match ratios describe that regime, not the player.
+  speed_avg:         { label: 'gennemsnitsfart',                 direction: 1,  fmt: 'dec1', minSamples: 120, unit: 'speed', coachable: false, boostBound: true },
+  speed_max:         { label: 'højeste fart',                    direction: 1,  fmt: 'dec1', minSamples: 120, unit: 'speed', coachable: false, boostBound: true },
+  supersonic_share:  { label: 'tid i supersonic',                direction: 1,  fmt: 'pct',  minSamples: 120, coachable: false, boostBound: true },
   // No direction at all: being off the ground is neither good nor bad in
   // itself, and the feed cannot tell an aerial from a bump or a bad landing.
   // direction 0 keeps it out of the RANKING, but coachable is a separate gate
   // and both are needed: rules fire on their own thresholds, not on deltaPct.
-  airborne_share:    { label: 'tid uden hjul på jorden',         direction: 0,  fmt: 'pct',  minSamples: 120, coachable: false },
-  slow_share:        { label: 'tid ved lav fart',                direction: -1, fmt: 'pct',  minSamples: 120, coachable: false },
-  distance_per_min:  { label: 'kørt distance pr. minut',         direction: 1,  fmt: 'int',  minSamples: 120, unit: 'dist', coachable: false },
+  airborne_share:    { label: 'tid uden hjul på jorden',         direction: 0,  fmt: 'pct',  minSamples: 120, coachable: false, boostBound: true },
+  slow_share:        { label: 'tid ved lav fart',                direction: -1, fmt: 'pct',  minSamples: 120, coachable: false, boostBound: true },
+  distance_per_min:  { label: 'kørt distance pr. minut',         direction: 1,  fmt: 'int',  minSamples: 120, unit: 'dist', coachable: false, boostBound: true },
   // The spec lists distance in total; per minute is the version that survives
   // matches of different length, which the spec itself asks for. The total is
   // kept in evidence so the tape can still show it.
-  dist_per_touch:    { label: 'kørt distance pr. touch',         direction: -1, fmt: 'int',  minSamples: 120, unit: 'dist' },
-  speed_drift:       { label: 'fart-drift, sidste mod første tredjedel', direction: 1, fmt: 'dec2', minSamples: 30, coachable: false },
+  dist_per_touch:    { label: 'kørt distance pr. touch',         direction: -1, fmt: 'int',  minSamples: 120, unit: 'dist', boostBound: true },
+  speed_drift:       { label: 'fart-drift, sidste mod første tredjedel', direction: 1, fmt: 'dec2', minSamples: 30, coachable: false, boostBound: true },
   // No direction: after conceding, both a collapse and a frantic spike are
   // deviations, and nothing measured here says which one this is.
-  post_concede_speed:{ label: 'fart efter indkasseret mål',      direction: 0,  fmt: 'dec2', minSamples: 2, coachable: false },
+  post_concede_speed:{ label: 'fart efter indkasseret mål',      direction: 0,  fmt: 'dec2', minSamples: 2, coachable: false, boostBound: true },
   pass_count:        { label: 'afleveringer til makker',         direction: 1,  fmt: 'int',  minSamples: 0, noPct: true, coachable: false }
 };
 
@@ -456,7 +578,13 @@ function ranked(id){
  */
 function computeMetrics(digest, me){
   const out = {};
+  // A mutator read off the telemetry (6/9) leaves every boostBound metric
+  // absent for this match: missing, not zero, and never a number a baseline
+  // could fold. Every caller — the debrief, the live focus meter, the seeded
+  // standard — goes through here, so there is exactly one gate.
+  const mutators = mutatorsOf(digest, me);
   const add = (id, value, samples, evidence) => {
+    if (blockedBy(id, mutators)) return;
     if (samples >= DEFS[id].minSamples && Number.isFinite(value))
       out[id] = { value, samples, evidence: evidence || {} };
   };
@@ -705,4 +833,7 @@ module.exports = { MIN_BASELINE, EWMA_ALPHA, BOOST_LOW_AT, DEFS, playlistOf, val
   UNITS, configureUnits, detectUnit, currentUnit, unitFor, labelWithUnit, slowThreshold,
   configureLanguage, currentLanguage,
   PLAYLIST_NAMES, PRIVATE_PLAYLIST_IDS, playlistIdOf, playlistNameOf, privacyOf, isPrivate, privateLabel,
-  KIND_IDS, KIND_ORDER, ID_COVERAGE_OK, matchKindOf, bucketOf, kindLabel };
+  KIND_IDS, KIND_ORDER, ID_COVERAGE_OK, matchKindOf, bucketOf, kindLabel,
+  // mutators (6/9-2026)
+  UNLIMITED_BOOST_AVG, UNLIMITED_BOOST_TOP_AT, UNLIMITED_BOOST_TOP_SHARE, UNLIMITED_BOOST_MIN_SEC,
+  boostProfile, mutatorsOf, blockedBy, blockedIds, hasMutator, mutatorLabel, mutatorNote };

@@ -128,8 +128,14 @@ function build(debriefs, opts){
     const size = j.match.playlistSize || j.match.playlist || '?';
     const vals = {};
     for (const m of j.metrics) if (m && typeof m.value === 'number' && PHYS.includes(m.id)) vals[m.id] = m.value;
+    // Unlimited boost (6/9): the match counts for results and nights, but its
+    // body reading is not a reading of the body — speed and air time are the
+    // mutator's, and even touches/kickoff approach are driven under it. It
+    // gets no physical index and does not enter the robust baseline.
+    const mutated = Array.isArray(j.match.mutators) && j.match.mutators.length > 0;
     rows.push({ t, day: playDay(new Date(t).toISOString()), cal: calDay(t), night: new Date(t).getHours() < NIGHT_BEFORE,
-                size, result: j.match.result === 'W' ? 'W' : j.match.result === 'L' ? 'L' : null, vals, file: j.match.file || null });
+                size, result: j.match.result === 'W' ? 'W' : j.match.result === 'L' ? 'L' : null, vals, file: j.match.file || null,
+                mutated });
   }
   rows.sort((a, b) => a.t - b.t);
 
@@ -137,7 +143,7 @@ function build(debriefs, opts){
   const since = now - BASE_DAYS * 864e5;
   const base = {};
   for (const r of rows){
-    if (r.t < since) continue;
+    if (r.t < since || r.mutated) continue;
     const b = base[r.size] || (base[r.size] = { n: 0, metrics: {} });
     b.n++;
     for (const id of PHYS) if (r.vals[id] != null) (b.metrics[id] = b.metrics[id] || []).push(r.vals[id]);
@@ -156,7 +162,7 @@ function build(debriefs, opts){
   for (const r of rows){
     const bm = baseline[r.size] && baseline[r.size].metrics;
     const zs = [];
-    if (bm) for (const id of PHYS){
+    if (bm && !r.mutated) for (const id of PHYS){
       const b = bm[id];
       if (b && r.vals[id] != null) zs.push(clamp((r.vals[id] - b.median) / b.mad, -Z_CAP, Z_CAP));
     }

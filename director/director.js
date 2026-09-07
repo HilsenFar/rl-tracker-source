@@ -343,12 +343,20 @@ const EXTRA_LABELS_EN = {
  * 27/7: a card said "Svagest i dag: kickoff-touchkraft — 83 mod normalt 98"
  * while the table showed no such row, so the one number the player was being
  * asked to act on had no receipt. Anything the card names gets a row. */
-function buildTape(snaps, cited){
+const MUTATOR_ROW_ID = 'mutator_unlimited_boost';
+function buildTape(snaps, cited, mutators){
   const XL = EN() ? EXTRA_LABELS_EN : EXTRA_LABELS;
   const extra = (cited || [])
     .filter(id => id && snaps[id] && XL[id] && !TAPE.some(t => t.id === id))
     .map(id => ({ id, label: XL[id] }));
   const rows = [];
+  // Unlimited boost (6/9): the boost, movement and touch-power rows are absent
+  // for this match (metrics.mutatorsOf), and a table that silently lacks them
+  // would read as "nothing to show". The first row says why — shown, not hidden.
+  if (M.hasMutator(mutators))
+    rows.push({ id: MUTATOR_ROW_ID, label: EN() ? 'Unlimited boost (mutator)' : 'Ubegrænset boost (mutator)',
+                now: EN() ? 'boost/distance/touch power not measured' : 'boost/afstand/slagkraft ikke målt',
+                normal: null, baselineN: 0, better: null });
   for (const t of TAPE.concat(extra)){
     const s = snaps[t.id];
     if (!s) continue;
@@ -920,6 +928,10 @@ function onDigest(digest, fileName){
   M.configureUnits(profile.speedUnit, profile.speedUnitDetected);
 
   const matchMetrics = timed('computeMetrics', () => M.computeMetrics(digest, v.me));
+  // Mutators read off the telemetry (6/9): computeMetrics has already left
+  // every boostBound metric absent, so nothing below can fold or rank one;
+  // the list is stamped on the card so every surface can SAY so.
+  const mutators = M.mutatorsOf(digest, v.me);
   const snaps = M.snapshotAndFold(matchMetrics, pl, { idKnown: bucket.known, kind: bucket.kind });
   // judged against the standard, not a normal of his own (seed.js): the
   // receipt says so on every row, and the sentences are relabelled below
@@ -959,7 +971,10 @@ function onDigest(digest, fileName){
              // and whether the kind is MEASURED (kindKnown:false = id-less
              // digest, kept under the size label, never reclassified)
              playlistSize: bucket.size, playlistId: bucket.id, matchKind: bucket.kind,
-             kindKnown: bucket.known, matchType: bucket.name },
+             kindKnown: bucket.known, matchType: bucket.name,
+             // mutators read off the match (6/9): [] for a normal match, else
+             // e.g. ['unlimited_boost'] — the boostBound metrics are absent
+             mutators },
     collecting, baselineN: baselineN + 1,
     // The unit THIS match was measured in, stamped on the debrief. Every stored
     // number in it is in that unit forever, so a later change of setting must
@@ -976,7 +991,7 @@ function onDigest(digest, fileName){
     // (guest mode): "your normal" reads "the standard" everywhere on this card
     seeded,
     voiced: false,
-    tape: buildTape(snaps, [lines.ros.metricId, lines.problem.metricId]),   // see buildTape()
+    tape: buildTape(snaps, [lines.ros.metricId, lines.problem.metricId], mutators),   // see buildTape()
     ros: lines.ros, problem: lines.problem, advice: lines.advice,
     metrics: Object.values(snaps).map(s => ({                     // full evidence trail ("kvitteringen")
       id: s.id, value: s.value, samples: s.samples,
@@ -1003,7 +1018,8 @@ function onDigest(digest, fileName){
   catch(e){ log('[session] fejl: ' + (e.message || e)); }
   try{ const f = timed('form.update', () => form.update()); if (f) broadcast({ Event: '_form', Data: f }); }catch{}
 
-  log('[director] debrief (' + playlist + (facts.result ? ', ' + facts.result : '') + (collecting ? ', indsamler' : '') + '): ' + lines.problem.text);
+  log('[director] debrief (' + playlist + (facts.result ? ', ' + facts.result : '') + (collecting ? ', indsamler' : '')
+    + (mutators.length ? ', ' + M.mutatorLabel(mutators, false) + ' — boost/afstand/slagkraft ikke målt' : '') + '): ' + lines.problem.text);
 
   // M3: the template debrief above is final and already on its way to the
   // board. The voice layer only ever REPLACES it, asynchronously, and only if
@@ -1033,6 +1049,7 @@ function privateCard(digest, fileName, v, bucket){
   const matchType = M.privateLabel(digest, en);
   M.configureUnits(profile.speedUnit, profile.speedUnitDetected);
   const matchMetrics = M.computeMetrics(digest, v.me);
+  const mutators = M.mutatorsOf(digest, v.me);
   const snaps = {};
   for (const id of Object.keys(matchMetrics)){
     const m = matchMetrics[id];
@@ -1057,7 +1074,8 @@ function privateCard(digest, fileName, v, bucket){
              myTeam: v.me.team, arena: digest.arena || null, abandoned: !!digest.abandoned,
              private: true, privateSource: priv.source, matchType,
              playlistId: M.playlistIdOf(digest), playlistSize: bucket.size,
-             matchKind: 'private', kindKnown: priv.source === 'playlistId' },
+             matchKind: 'private', kindKnown: priv.source === 'playlistId',
+             mutators },
     private: true,
     collecting: false, baselineN,
     speedUnit: M.unitFor('speed_avg') ? M.currentUnit() : null,
@@ -1065,7 +1083,7 @@ function privateCard(digest, fileName, v, bucket){
           shots: v.me.shots, touches: v.me.touches },
     coachee: { pid: profile.trackedPid, name: profile.trackedName || '', guest: isGuest() },
     voiced: false,
-    tape: buildTape(snaps, []),
+    tape: buildTape(snaps, [], mutators),
     ros: lines.ros, problem: lines.problem, advice: lines.advice,
     metrics: Object.values(snaps).map(s => ({ id: s.id, value: s.value, samples: s.samples,
                                               baseline: null, delta: null, evidence: s.evidence })),
@@ -1138,14 +1156,18 @@ function applyVoice(debrief, fileName, v){
  * live setting is put back straight after. */
 function tapeWithCitations(d){
   const cited = [d.ros && d.ros.metricId, d.problem && d.problem.metricId].filter(Boolean);
-  const missing = d.tape && cited.some(id => !d.tape.some(r => r.id === id));
+  const mutators = d.match && Array.isArray(d.match.mutators) ? d.match.mutators : [];
+  // a card that knows its mutator but whose stored tape has no row saying so
+  // (written before 6/9) is rebuilt too — the note is a receipt like any other
+  const missing = d.tape && (cited.some(id => !d.tape.some(r => r.id === id))
+    || (M.hasMutator(mutators) && !d.tape.some(r => r.id === MUTATOR_ROW_ID)));
   if (!((!d.tape || missing) && Array.isArray(d.metrics) && d.metrics.length)) return null;
   const snaps = {};
   for (const m of d.metrics) if (M.DEFS[m.id]) snaps[m.id] = m;
   const now = M.currentUnit();
   try{
     if (d.speedUnit && d.speedUnit !== now) M.configureUnits(d.speedUnit, d.speedUnit);
-    return buildTape(snaps, cited);
+    return buildTape(snaps, cited, mutators);
   }catch{ return null; }
   finally{ if (d.speedUnit && d.speedUnit !== now) M.configureUnits(now, now); }
 }

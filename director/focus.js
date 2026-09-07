@@ -12,8 +12,13 @@
  * focus history through this very file — could never judge the week's focus
  * because it was never in force. `pick()` closes that: the week opens on the
  * weekly's focus, and it stays on the card as long as the latest session still
- * measures it below normal. When an evening shows it reached (or never played
- * that playlist), the evening's worst metric takes over as before.
+ * measures it below normal. When an evening shows it reached, the evening's
+ * worst metric takes over as before. An evening that never MEASURED it — no
+ * match in the focus playlist — says nothing about it, so the week's focus
+ * stands (from 6/9-2026, see KEEP_UNMEASURED_FROM). Until then such an evening
+ * also handed the card to its own worst metric, which is how a 2v2-only
+ * afternoon on 6/9 took the week's 3v3 focus off the card three matches before
+ * the player played the 3v3 it was waiting for.
  *
  * The target is always the player's own normal — never an invented benchmark,
  * never someone else's number — and only a MATURE normal (>= MIN_BASELINE):
@@ -46,6 +51,20 @@ const EN = () => M.currentLanguage() === 'en';
  * first one that opens a week; no match had been played between it landing
  * and this shipping. */
 const COUPLED_FROM = Date.parse('2026-08-17T04:00:00Z');
+
+/* Same guard for the 6/9-2026 rule ("an unmeasured week focus stands"): a
+ * session report older than this went through the old rule when it landed,
+ * and the card really did switch — the replay must show what the card said,
+ * not what it would have said. Sessions from this instant on keep the focus. */
+const KEEP_UNMEASURED_FROM = Date.parse('2026-09-06T20:00:00Z');
+
+/* Did the session measure this focus at all — a trend row for the metric in
+ * the focus playlist with a number to judge? A session with no match in that
+ * playlist has no row; so has an evening where the metric was gated off. */
+function measuredIn(session, wf){
+  return !!(session && Array.isArray(session.trends) && session.trends.some(t =>
+    t.id === wf.metricId && (t.playlist || null) === wf.playlist && t.goodness !== null));
+}
 
 /* The session's trends that may carry a focus: below normal, with a baseline
  * to aim at, and a baseline mature enough to be worth aiming at. Trends are per
@@ -145,7 +164,10 @@ function fromWeekly(weekly){
  *  3. Otherwise the week's focus stays while the latest session still measures
  *     it below normal — the evening's numbers, the evening's target (the
  *     freshest normal, the one the debrief and the meter also judge against).
- *     Reached, or not measured that evening → the evening's worst, as before.
+ *     Reached → the evening's worst, as before.
+ *  4. Not measured that evening (no match in the focus playlist) → the week's
+ *     focus stands, as printed in the report (6/9-2026; sessions before
+ *     KEEP_UNMEASURED_FROM fall through to the evening's worst, as they did).
  *
  * Both director.focus() and weekly.focusTimeline() call this and nothing else,
  * so the proof section can never measure a focus the player did not see. */
@@ -156,6 +178,7 @@ function pick(session, weekly){
   const cands = candidates(session);
   const kept = cands.find(t => t.id === wf.metricId && (t.playlist || null) === wf.playlist);
   if (kept) return fromCandidate(session, kept, { key: weekly.key, week: weekly.week });
+  if (Date.parse(session.at) >= KEEP_UNMEASURED_FROM && !measuredIn(session, wf)) return wf;
   return cands.length ? fromCandidate(session, cands[0], null) : null;
 }
 
@@ -207,4 +230,4 @@ function live(focus, rec, trackedPid){
   };
 }
 
-module.exports = { fromReport, fromWeekly, pick, live };
+module.exports = { fromReport, fromWeekly, pick, live, KEEP_UNMEASURED_FROM };
