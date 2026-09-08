@@ -23,6 +23,18 @@ const DEFAULT_REPO = 'HilsenFar/rl-tracker-releases';
 const CHECK_DELAY_MS = 15e3;            // boot skal ikke vente på netværk
 const CHECK_INTERVAL_MS = 24 * 3600e3;
 
+/* Hvilket release-asset hører til denne platform? OPDATERING*.zip er Windows-
+ * pakken (SEA-exe + .bat) — den duer ikke på Linux. Dér vælges kun et asset
+ * med "linux" i navnet; findes det ikke, meldes versionen stadig (linket til
+ * release-siden + `git pull`/kilde-spejlet er vejen), men uden download-navn.
+ * Ren funktion — testet i linux-paths.test.js. */
+function pickAsset(assets, platform){
+  const list = Array.isArray(assets) ? assets : [];
+  const by = rx => list.find(a => rx.test(String((a && a.name) || '')));
+  if (platform !== 'win32') return by(/linux.*\.(zip|tar\.gz|tgz|AppImage)$/i) || null;
+  return by(/OPDATERING.*\.zip$/i) || by(/\.zip$/i) || null;
+}
+
 function cmpVersions(a, b){
   const pa = String(a || '').replace(/^v/i, '').split(/[.\-]/).map(Number);
   const pb = String(b || '').replace(/^v/i, '').split(/[.\-]/).map(Number);
@@ -81,8 +93,7 @@ function init(opts){
     try{
       const rel = await fetchLatest(repo);
       const version = String(rel.tag_name || '').replace(/^v/i, '');
-      const asset = (rel.assets || []).find(a => /OPDATERING.*\.zip$/i.test(a.name || ''))
-                 || (rel.assets || []).find(a => /\.zip$/i.test(a.name || ''));
+      const asset = pickAsset(rel.assets, process.platform);
       s.latest = {
         version,
         url: rel.html_url || ('https://github.com/' + repo + '/releases/latest'),
@@ -116,4 +127,4 @@ function init(opts){
   };
 }
 
-module.exports = { init, cmpVersions };
+module.exports = { init, cmpVersions, pickAsset };

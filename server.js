@@ -460,9 +460,14 @@ function handleStream(url, req, res){
  * %APPDATA%\bakkesmod\bakkesmod\data\RocketStats\RocketStats_images.
  * Browsers can't render TGA, so convert on the fly (zero deps via zlib).
  */
-const RS_IMAGES = process.env.APPDATA
-  ? path.join(process.env.APPDATA, 'bakkesmod', 'bakkesmod', 'data', 'RocketStats', 'RocketStats_images')
-  : null;
+/* RS_IMAGES_DIR (6/9) gaar forud: paa Linux findes %APPDATA% ikke, og mappen
+ * ligger i Wine-prefixet (<pfx>/drive_c/users/<u>/AppData/Roaming/bakkesmod/...)
+ * — eller slet ingen steder, hvorefter emblemerne blot udebliver (null). */
+const RS_IMAGES = process.env.RS_IMAGES_DIR
+  ? process.env.RS_IMAGES_DIR
+  : process.env.APPDATA
+    ? path.join(process.env.APPDATA, 'bakkesmod', 'bakkesmod', 'data', 'RocketStats', 'RocketStats_images')
+    : null;
 const imgCache = new Map();
 
 const CRC_TABLE = (() => {
@@ -796,7 +801,7 @@ const STATS_PORT = Number(process.env.STATS_PORT) || 49123;
  * begge med luft, og overskridelse tælles i hitEventsDropped — aldrig tavst. */
 const HIT_EVENTS_MAX = 6000;
 const MATCH_DIR = path.join(ROOT, 'matches');
-const ADAPTER_VERSION = '1.4.0';   // 1.1.0 digest envelope · 1.2.0 movement + per-second curve (M4b) · 1.3.0 hitEvents (per-hit tidsakse) · 1.4.0 playlistId (rå Game.PlaylistId)
+const ADAPTER_VERSION = '1.5.0';   // 1.1.0 digest envelope · 1.2.0 movement + per-second curve (M4b) · 1.3.0 hitEvents (per-hit tidsakse) · 1.4.0 playlistId (rå Game.PlaylistId) · 1.5.0 goals[].w + impactX/impactZ (additive, RADAR-DESIGN §8)
 
 /* RL Director (M1): deterministic debrief engine, loaded from disk so it also
  * works inside the SEA exe (whose builtin require can't load local files). */
@@ -822,6 +827,17 @@ try{
 let pitch = null;
 try{ pitch = loadDirectorModule('pitch.js'); }
 catch(e){ console.log('[pitch] ikke indlæst — banekortet slået fra:', String(e.message || e)); }
+/* Baneradarens zoner (7/9, RADAR-DESIGN.md §6): /api/pitch bærer en `radar`-
+ * blok med ugens indkasseringer pr. zone. Geometrien (zoneOf) er trin A;
+ * profile()/offenseProfile() er trin B og kan mangle eller kaste — blokken
+ * falder så tilbage til rene tællinger (gate null). weekly.js lånes KUN for
+ * uge-regnestykket (currentWeek/isoWeekOf/playDay — rene funktioner, samme
+ * modul-instans som director.js allerede holder). */
+let radar = null, weeklyFns = null;
+try{ radar = loadDirectorModule('radar.js'); }
+catch(e){ console.log('[radar] ikke indlæst — zonerne slået fra:', String(e.message || e)); }
+try{ weeklyFns = loadDirectorModule('weekly.js'); }
+catch(e){ console.log('[radar] weekly.js ikke indlæst — ugevalget slået fra:', String(e.message || e)); }
 
 /* Testrunden (25/8, gate 6): første-kørsels-valget "Join the test round?" og
  * feedback-beskeder til collectoren. Tynde ruter her — logik og tekster bor i
@@ -854,7 +870,7 @@ try{
  * besked på boardet, aldrig selv-opdatering. Anonymt kald; slås fra med
  * "updateCheck": false i director-ai.json eller UPDATE_CHECK=0.
  * Logik: director/update-check.js. */
-const APP_VERSION = '2026.09.06.1';
+const APP_VERSION = '2026.09.07.1';
 let updateCheck = null;
 try{
   let updOff = process.env.UPDATE_CHECK === '0';
@@ -976,7 +992,12 @@ function recNewMatch(guid){
      * bor i director/metrics.js — aldrig her (samme princip som bhist). */
     playlistId: null,
     arena: '', teams: [], winnerTeamNum: null, overtime: false, abandoned: false,
-    players: [], goals: [], scoreline: [], kickoffs: [], demos: [],
+    players: [], scoreline: [], kickoffs: [], demos: [],
+    /* goals: {clock, ot, scorer, team, assist, speed, impactY} + fra 1.5.0 (6/9,
+     * RADAR-DESIGN §8) w (vaegur-sekunder siden start, som hitEvents.w) og
+     * impactX/impactZ (maalets X/Z fra ImpactLocation, null naar de mangler).
+     * Additive: arkivets aeldre digests har blot ikke felterne. */
+    goals: [],
     hits: {},                                  // name -> {count,sumSpeed,maxSpeed,plusY,minusY}
     /* Per-hit events WITH a time axis (30/7-2026). The aggregate above answers
      * "hvor hårdt i snit", aldrig "HVORNÅR" — og både de psykologiske vinduer
@@ -1364,12 +1385,20 @@ function recOnMsg(raw){
     }
     case 'GoalScored':
       rec.lastHit = null;                                // the pass chain never crosses a goal
-      if (rec.m && d.Scorer && d.Scorer.Name)            // skip phantom goals
+      if (rec.m && d.Scorer && d.Scorer.Name){           // skip phantom goals
+        const loc = d.ImpactLocation || {};
         rec.m.goals.push({ clock: rec.clock, ot: rec.overtime, scorer: d.Scorer.Name, team: d.Scorer.TeamNum,
+          /* w: vaegur-sekunder siden digest-start, samme akse som hitEvents.w —
+           * saa et maal kan sys til beroeringerne foer det (RADAR-DESIGN §8, 1.5.0) */
+          w: Math.round((Date.now() - rec.mStartMs) / 100) / 10,
           assist: (d.Assister && d.Assister.Name) || null,
           speed: typeof d.GoalSpeed === 'number' ? Math.round(d.GoalSpeed) : null,
           // goal-line Y: lets metrics calibrate attack direction per match (never assumed)
-          impactY: d.ImpactLocation && typeof d.ImpactLocation.Y === 'number' ? Math.round(d.ImpactLocation.Y) : null });
+          impactY: typeof loc.Y === 'number' ? Math.round(loc.Y) : null,
+          // X/Z (1.5.0): hvor i maalet bolden gik ind — additive, null naar feedet ikke sender dem
+          impactX: typeof loc.X === 'number' ? Math.round(loc.X) : null,
+          impactZ: typeof loc.Z === 'number' ? Math.round(loc.Z) : null });
+      }
       break;
     case 'StatfeedEvent':
       if (rec.m && d.EventName === 'Demolish' && d.MainTarget)
@@ -1504,11 +1533,46 @@ const TEXTUAL = /^(text\/|application\/(javascript|json)|image\/svg)/;
  * profile.json and matches/ hold personal telemetry, and the .bat/.ps1
  * launchers have no business being downloadable. Serve the page's own assets
  * and the generated reports; refuse the rest. */
+/* Hvilken overlay-vaert kan serveren starte? (Linux-sporet 6/9, RADAR-DESIGN §8 +
+ * docs/LINUX-OVERLAY.md.) Ren funktion — platform, miljoe og "findes filen"
+ * gives udefra, saa linux-paths.test.js kan koere den paa Windows.
+ *   win32: RLOverlay.exe ved siden af serveren (uaendret siden 25/8)
+ *   linux: RL_OVERLAY_CMD (en shell-linje brugeren selv ejer) — ellers
+ *          linux-overlay/ i ROOT eller lige over ROOT med Electron installeret
+ *          (node_modules/electron findes = `npm install` er koert)
+ *   alt andet (darwin): ingen vaert, knappen skjules som foer. */
+function findOverlayLauncher(platform, env, root, exists){
+  if (platform === 'win32'){
+    const exe = path.join(root, 'RLOverlay.exe');
+    return exists(exe) ? { kind: 'exe', exe } : null;
+  }
+  if (platform !== 'linux') return null;
+  if (env.RL_OVERLAY_CMD) return { kind: 'cmd', cmd: String(env.RL_OVERLAY_CMD) };
+  for (const dir of [path.join(root, 'linux-overlay'), path.join(root, '..', 'linux-overlay')]){
+    if (exists(path.join(dir, 'main.js')) && exists(path.join(dir, 'node_modules', 'electron')))
+      return { kind: 'electron', dir };
+  }
+  return null;
+}
+/* pgrep-moenster for Electron-vaerten: `electron .` / `electron --no-sandbox .` /
+ * `electron /sti/linux-overlay`. Renderer-boern matcher ikke (ingen "." som eget
+ * argument), men det er ligegyldigt — de lever kun mens hovedprocessen goer.
+ * RL_OVERLAY_PGREP overstyrer for den der starter vaerten paa sin egen maade. */
+const OVERLAY_PGREP = 'electron[^ ]* (.* )?(\\.|[^ ]*linux-overlay[^ ]*)( |$)';
 /* Koerer overlayet? Samme greb som statsapi-guard bruger paa spillet: tasklist
- * er det eneste svar, der ikke kraever rettigheder. "Ved det ikke" behandles som
- * "koerer ikke" — at starte en kopi mere er ufarligt (overlayet er single-instance). */
+ * (Windows) / pgrep (Linux) er det eneste svar, der ikke kraever rettigheder.
+ * "Ved det ikke" behandles som "koerer ikke" — at starte en kopi mere er
+ * ufarligt (begge vaerter er single-instance). Windows-grenen er uaendret. */
 function overlayRunning(){
   return new Promise(resolve => {
+    if (process.platform === 'linux'){
+      try{
+        require('child_process').execFile('pgrep', ['-f', process.env.RL_OVERLAY_PGREP || OVERLAY_PGREP],
+          { timeout: 8e3 },
+          (err, stdout) => resolve(!err && String(stdout).trim().length > 0));
+      }catch{ resolve(false); }
+      return;
+    }
     if (process.platform !== 'win32') return resolve(false);
     try{
       require('child_process').execFile('tasklist',
@@ -1517,6 +1581,50 @@ function overlayRunning(){
         (err, stdout) => resolve(!err && /RLOverlay\.exe/i.test(String(stdout))));
     }catch{ resolve(false); }
   });
+}
+/* Vaertens statusfil (7/9): RLOverlay.exe skriver overlay-status.json ved siden
+ * af sig selv (= ROOT) ved hvert skift og som puls hvert 10. sekund:
+ * {version, fullscreen, game, shown, at}. fullscreen = spillet koerer exclusive
+ * fullscreen, og vaerten holder kortene parkeret (et vindue over spillet ville
+ * sparke det ud paa skrivebordet — overlay-host/Program.cs). Ren funktion: tekst
+ * + "nu" ind, dom ud. En fil aeldre end 30 s (vaerten lukket haardt) er ingen dom,
+ * og daarlig JSON (halvt skrevet) er ingen dom. Vaerten sletter filen ved lukning. */
+const OVERLAY_STATUS_FILE = 'overlay-status.json';
+const OVERLAY_STATUS_MAX_AGE = 30e3;
+function readOverlayStatus(text, now){
+  let j;
+  try{ j = JSON.parse(String(text || '')); }catch{ return null; }
+  if (!j || typeof j !== 'object' || !Number.isFinite(j.at)) return null;
+  const age = now - j.at;
+  if (age < -60e3 || age > OVERLAY_STATUS_MAX_AGE) return null;
+  return { fullscreen: j.fullscreen === true, game: j.game === true, shown: j.shown === true,
+           version: typeof j.version === 'string' ? j.version.slice(0, 32) : null, age };
+}
+function overlayStatus(){
+  try{ return readOverlayStatus(fs.readFileSync(path.join(ROOT, OVERLAY_STATUS_FILE), 'utf8'), Date.now()); }
+  catch{ return null; }
+}
+/* Start vaerten loesrevet fra serveren (detached + unref: overlayet skal overleve,
+ * at serveren genstartes). 'error' SKAL lyttes paa: en ENOENT fra spawn kommer
+ * som asynkron event og vaelter processen trods try/catch (maalt 6/9, crit R3-G1). */
+function spawnOverlay(launcher){
+  const { spawn } = require('child_process');
+  let child;
+  if (launcher.kind === 'exe'){
+    child = spawn(launcher.exe, [], { cwd: ROOT, detached: true, stdio: 'ignore', windowsHide: true });
+  } else {
+    const env = Object.assign({}, process.env);
+    if (!env.RL_OVERLAY_URL) env.RL_OVERLAY_URL = 'http://localhost:' + PORT + '/?overlay&glass';
+    // Statusfilen skal ligge i ROOT (den laeses her) — vaerten bor i linux-overlay/ (docs/LINUX-OVERLAY.md §10).
+    if (!env.RL_OVERLAY_STATUS) env.RL_OVERLAY_STATUS = path.join(ROOT, OVERLAY_STATUS_FILE);
+    if (launcher.kind === 'cmd')
+      child = spawn('/bin/sh', ['-c', launcher.cmd], { cwd: ROOT, env, detached: true, stdio: 'ignore' });
+    else
+      child = spawn(path.join(launcher.dir, 'node_modules', '.bin', 'electron'), ['.'],
+        { cwd: launcher.dir, env, detached: true, stdio: 'ignore' });
+  }
+  child.on('error', e => console.log('[overlay] kunne ikke starte vaerten: ' + String((e && e.code) || e)));
+  child.unref();
 }
 
 const PUBLIC_FILES = new Set(['RLLiveTracker.html', 'ds.css', 'icons.svg', 'icon.ico',
@@ -1563,6 +1671,143 @@ function pitchAggregate(){
   return pitch.aggregate(path.join(ROOT, 'matches'), {
     pid: tr.ownerPid || tr.trackedPid || tr.pid || '',
     name: tr.ownerName || tr.trackedName || tr.name || '' });
+}
+
+/* ---------- Baneradarens zoner paa /api/pitch (7/9, RADAR-DESIGN.md §3/§6) ----
+ * Rene hjaelpere (ingen I/O): director/test/pitch-radar.test.js klipper dem ud
+ * af kildeteksten som server-fns.test.js goer. Formen er STABIL — HTML'ens
+ * radar-panel laeser den:
+ *
+ *   radar: {
+ *     week: { key, from, to,               // ISO-spilleugen (06:00-reglen) der er talt
+ *             located, noX, ko, n,         // stedfaestede / uden x / heraf kickoff-maal / alle bundne
+ *             zones: { D1:{n,share} … D6 },   // share = n/located
+ *             offense: { zones:{ O1:{goals,touches,per100} … }, front:{per100} } | null },
+ *     marked: { def: { zone, n, located, share } | null,   // kun naar gaten er bestaaet
+ *               off: { zone, goals, touches, per100 } | null,
+ *               fromWeek: '2026-W36' | null },   // sat naar ugen var for tynd og forrige uge blev talt
+ *     gate: { ok, reason } | null,          // trin B's dom; null = trin B mangler (kun taellinger)
+ *     longRun: { located, noX, ko, zones:{…}, excluded, unbound },   // hele arkivet
+ *     excluded: { private, mutators }, unbound,   // ugens
+ *     orientationVerified: false            // ±x er IKKE set i spillet endnu (§1)
+ *   }
+ *
+ * Uden trin B (profile/offenseProfile mangler eller kaster 'not implemented')
+ * bliver zone-TAELLINGERNE stadig leveret, marked er tomt og gate null — saa
+ * overlayet kan tegne tallene i aften og zonerne naar trin B lander. */
+const RADAR_WEEK_MIN_LOCATED = 10;   // under dette (fx mandag morgen) tælles forrige lukkede uge (§3 'fra uge N')
+const RADAR_WEEK_GATE = { min: 40, zoneMin: 10, zoneShare: 0.25 };   // kontraktens uge-gate, bruges hvis trin B ikke eksporterer sin egen
+
+/* Zone-taellinger for en liste skudsteder [x|null, y, minut, z|null, day, ko]. */
+function radarZoneCounts(entries, R, family){
+  const p = family === 'off' ? 'O' : 'D';
+  const zones = {};
+  for (let i = 1; i <= 6; i++) zones[p + i] = { n: 0, share: 0 };
+  let located = 0, noX = 0, ko = 0, n = 0;
+  for (const e of (entries || [])){
+    if (!Array.isArray(e)) continue;
+    n++;
+    let z = null;
+    try{ z = R && R.zoneOf ? R.zoneOf(e[0], e[1], e[3], family) : null; }catch{ z = null; }
+    if (!z){ noX++; continue; }
+    located++;
+    zones[z].n++;
+    if (e[5]) ko++;
+  }
+  if (located) for (const k of Object.keys(zones)) zones[k].share = zones[k].n / located;
+  return { n, located, noX, ko, zones };
+}
+
+/* Kampfiler der hoerer til spilleugen wk ({from,to} som YYYY-MM-DD). Filnavnet
+ * er UTC-stemplet startedAt (YYYY-MM-DDTHH-MM-SS-…); spilledoegnet regnes med
+ * weekly.playDay (06:00 lokal) — samme regel som resten af ugerapporten. */
+function radarFilesOfWeek(files, wk, playDay){
+  const out = [];
+  for (const f of (files || [])){
+    const m = /^(\d{4}-\d{2}-\d{2})T(\d{2})-(\d{2})-(\d{2})/.exec(f);
+    if (!m) continue;
+    const day = playDay(m[1] + 'T' + m[2] + ':' + m[3] + ':' + m[4] + 'Z');
+    if (day && day >= wk.from && day <= wk.to) out.push(f);
+  }
+  return out;
+}
+
+/* Selve blokken. agg = hele arkivets aggregat (pitch.aggregate), week =
+ * {key,from,to} + weekFold = pitch.foldEntries for ugens filer; prevWeek/
+ * prevFold = forrige lukkede uge (kun brugt naar ugen er for tynd; maa vaere
+ * null). R = director/radar.js (maa vaere null). Kaster aldrig. */
+function radarBlock(agg, week, weekFold, prevWeek, prevFold, R){
+  const empty = { matches: 0, scoredFrom: [], concededFrom: [], mineZones: {}, excluded: { private: 0, mutators: 0 }, unbound: 0 };
+  let wk = week, fold = weekFold || empty, fromWeek = null;
+  let counts = radarZoneCounts(fold.concededFrom, R, 'def');
+  if (counts.located < RADAR_WEEK_MIN_LOCATED && prevWeek && prevFold){
+    const pc = radarZoneCounts(prevFold.concededFrom, R, 'def');
+    if (pc.located > counts.located){ wk = prevWeek; fold = prevFold; counts = pc; fromWeek = prevWeek.key; }
+  }
+  // trin B: profil + gate. Mangler den, eller kaster den, staar taellingerne alene.
+  let prof = null, off = null, gate = null;
+  try{ if (R && typeof R.profile === 'function') prof = R.profile(fold.concededFrom, R.WEEK_GATE || RADAR_WEEK_GATE) || null; }catch{ prof = null; }
+  try{ if (R && typeof R.offenseProfile === 'function') off = R.offenseProfile(fold.scoredFrom, fold.mineZones) || null; }catch{ off = null; }
+  if (prof && prof.gate && typeof prof.gate.ok === 'boolean') gate = { ok: prof.gate.ok, reason: prof.gate.reason || null };
+  // trin B's egne tal vinder for zonerne naar de findes (samme geometri; profilen kan bære noZ m.m.)
+  const zones = prof && prof.zones ? prof.zones : counts.zones;
+  const located = prof && Number.isFinite(prof.located) ? prof.located : counts.located;
+  const zoneId = v => typeof v === 'string' ? v : (v && (v.id || v.zone)) || null;
+  let def = null;
+  if (gate && gate.ok){
+    const d = zoneId(prof.dominant);
+    const zc = d && zones[d] ? zones[d] : null;
+    if (d && zc) def = { zone: d, n: zc.n, located, share: Number.isFinite(zc.share) ? zc.share : (located ? zc.n / located : 0) };
+  }
+  let offMarked = null, offense = null;
+  if (off && off.zones){
+    offense = { zones: off.zones, front: off.front || null };
+    const w = Array.isArray(off.weak) && off.weak.length ? zoneId(off.weak[0]) : null;
+    const gateOff = !off.gate || off.gate.ok !== false;
+    if (w && off.zones[w] && gateOff)
+      offMarked = { zone: w, goals: off.zones[w].goals, touches: off.zones[w].touches, per100: off.zones[w].per100 };
+  }
+  const lr = radarZoneCounts(agg && agg.concededFrom, R, 'def');
+  return {
+    week: { key: wk ? wk.key : null, from: wk ? wk.from : null, to: wk ? wk.to : null,
+            located, noX: prof && Number.isFinite(prof.noX) ? prof.noX : counts.noX,
+            ko: prof && Number.isFinite(prof.kickoff) ? prof.kickoff : counts.ko, n: counts.n,
+            zones, offense },
+    marked: { def, off: offMarked, fromWeek },
+    gate,
+    longRun: { located: lr.located, noX: lr.noX, ko: lr.ko, zones: lr.zones,
+               excluded: (agg && agg.excluded) || { private: 0, mutators: 0 }, unbound: (agg && agg.unbound) || 0 },
+    excluded: fold.excluded || { private: 0, mutators: 0 }, unbound: fold.unbound || 0,
+    orientationVerified: !!(R && R.ORIENTATION_VERIFIED)
+  };
+}
+
+/* /api/pitch-svaret: arkivets aggregat + radar-blokken. Ugefoldet er lille
+ * (contributionsFor slaar op i den per-fil-cache aggregate() lige har fyldt,
+ * saa ingen fil laeses igen) og maa aldrig vaelte banekortet: fejler noget i
+ * radar-delen, sendes aggregatet uden `radar`. */
+function pitchWithRadar(){
+  const agg = pitchAggregate();
+  let block = null;
+  try{
+    if (weeklyFns && pitch.contributionsFor && pitch.foldEntries){
+      const tr = director && director.getTracked ? (director.getTracked() || {}) : {};
+      const owner = { pid: tr.ownerPid || tr.trackedPid || tr.pid || '', name: tr.ownerName || tr.trackedName || tr.name || '' };
+      const dir = path.join(ROOT, 'matches');
+      const files = pitch.listFiles(dir);
+      const wk = weeklyFns.currentWeek();
+      const fold = pitch.foldEntries(pitch.contributionsFor(dir, radarFilesOfWeek(files, wk, weeklyFns.playDay), owner));
+      let prevWk = null, prevFold = null;
+      if (radarZoneCounts(fold.concededFrom, radar, 'def').located < RADAR_WEEK_MIN_LOCATED){
+        const [y, m, d] = wk.from.split('-').map(Number);
+        const pd = new Date(y, m - 1, d - 1);
+        prevWk = weeklyFns.isoWeekOf(pd.getFullYear() + '-' + String(pd.getMonth() + 1).padStart(2, '0') + '-' + String(pd.getDate()).padStart(2, '0'));
+        prevFold = pitch.foldEntries(pitch.contributionsFor(dir, radarFilesOfWeek(files, prevWk, weeklyFns.playDay), owner));
+      }
+      block = radarBlock(agg, wk, fold, prevWk, prevFold, radar);
+    } else block = radarBlock(agg, null, null, null, null, radar);
+  }catch(e){ console.log('[radar] blokken fejlede (banekortet sendes uden):', String(e.message || e)); block = null; }
+  return block ? Object.assign({}, agg, { radar: block }) : agg;
 }
 function isPublic(rel){
   // A NUL byte reaches here via %00 and makes fs.* throw SYNCHRONOUSLY
@@ -1672,7 +1917,7 @@ const server = http.createServer(async (req, res) => {
      * gamle kampe kender kun laengdeaksen (y) og tegnes som scanlinjer;
      * beroeringer med x (gemt fra 26/8) returneres som praecise prikker.
      * Alt normaliseres saa ejerens eget maal ligger i minus-enden. */
-    if (url.pathname === '/api/pitch') return sendJSON(res, 200, timed('pitchAggregate', pitchAggregate));
+    if (url.pathname === '/api/pitch') return sendJSON(res, 200, timed('pitchAggregate', pitchWithRadar));
     /* Tilfaeldig traeningsbane (26/8): uniform traek fra HELE kartoteket
      * (kerne + variety + prejump-arkivet). Kun navn/kode/ophav — ingen
      * anbefalings-paastand: knappen ER en terning og siger det selv. */
@@ -1713,18 +1958,28 @@ const server = http.createServer(async (req, res) => {
      * loopback-only, men enhver side i brugerens browser kan nå loopback —
      * sameOrigin() øverst i handleren afviser fremmede origins. */
     if (url.pathname === '/api/overlay'){
-      const exe = path.join(ROOT, 'RLOverlay.exe');
-      const have = process.platform === 'win32' && fs.existsSync(exe);
-      if (req.method === 'GET')
-        return sendJSON(res, 200, { available: have, running: have ? await overlayRunning() : false });
+      /* Linux (6/9): samme svar, anden vaert — findOverlayLauncher() ovenfor
+       * vaelger RLOverlay.exe (win32) eller Electron-vaerten i linux-overlay/. */
+      const launcher = findOverlayLauncher(process.platform, process.env, ROOT, fs.existsSync);
+      const have = !!launcher;
+      if (req.method === 'GET'){
+        /* fullscreen (7/9): vaertens egen dom fra overlay-status.json — spillet
+         * koerer exclusive fullscreen, kortene er parkeret, boardet viser chippen.
+         * ?status er den stille udgave til chippens 5-sekunders-poll: kun filen,
+         * ingen tasklist (den koster en proces pr. kald). */
+        const st = have ? overlayStatus() : null;
+        const fullscreen = !!(st && st.fullscreen);
+        if (url.searchParams.has('status'))
+          return sendJSON(res, 200, { available: have, fullscreen, host: st });
+        return sendJSON(res, 200, { available: have, running: have ? await overlayRunning() : false, fullscreen, host: st });
+      }
       if (req.method === 'POST'){
-        if (!have) return sendJSON(res, 501, { ok: false, reason: 'RLOverlay.exe ligger ikke ved siden af serveren' });
+        if (!have) return sendJSON(res, 501, { ok: false, reason: process.platform === 'linux'
+          ? 'ingen overlay-vaert: saet RL_OVERLAY_CMD eller koer `npm install` i linux-overlay/ (se docs/LINUX-OVERLAY.md)'
+          : 'RLOverlay.exe ligger ikke ved siden af serveren' });
         if (await overlayRunning()) return sendJSON(res, 200, { ok: true, already: true });
-        try{
-          const { spawn } = require('child_process');
-          // detached + unref: overlayet skal overleve, at serveren genstartes
-          spawn(exe, [], { cwd: ROOT, detached: true, stdio: 'ignore', windowsHide: true }).unref();
-        }catch(e){ return sendJSON(res, 500, { ok: false, reason: String(e.message || e) }); }
+        try{ spawnOverlay(launcher); }
+        catch(e){ return sendJSON(res, 500, { ok: false, reason: String(e.message || e) }); }
         return sendJSON(res, 200, { ok: true, started: true });
       }
       res.writeHead(405); return res.end();
@@ -1864,6 +2119,14 @@ server.on('error', e => {
   process.exit(1);
 });
 
+/* Browser-aabneren pr. platform (6/9): win32 `cmd /c start`, macOS `open`,
+ * ellers `xdg-open`. Ren funktion — testes i linux-paths.test.js. */
+function browserOpenCommand(platform, url){
+  if (platform === 'win32') return { cmd: 'cmd', args: ['/c', 'start', '', url] };
+  if (platform === 'darwin') return { cmd: 'open', args: [url] };
+  return { cmd: 'xdg-open', args: [url] };
+}
+
 server.listen(PORT, HOST, () => {
   console.log('RL Live Tracker server');
   console.log('  Local:   http://localhost:' + PORT + '/');
@@ -1878,8 +2141,12 @@ server.listen(PORT, HOST, () => {
     console.log('  Boardet åbner nu i din browser. Luk DETTE vindue for at stoppe trackeren.');
     console.log('  (The board opens in your browser. Close THIS window to stop the tracker.)');
     try{
-      require('child_process').spawn('cmd', ['/c', 'start', '', 'http://localhost:' + PORT + '/'],
-        { detached: true, stdio: 'ignore', windowsHide: true }).unref();
+      const o = browserOpenCommand(process.platform, 'http://localhost:' + PORT + '/');
+      const child = require('child_process').spawn(o.cmd, o.args, { detached: true, stdio: 'ignore', windowsHide: true });
+      /* ENOENT (ingen xdg-open, ingen cmd) kommer som asynkron 'error' — uden
+       * lytter vaelter den hele serveren trods try/catch (maalt 6/9, R3-G1). */
+      child.on('error', () => {});
+      child.unref();
     }catch{}
   }
 });

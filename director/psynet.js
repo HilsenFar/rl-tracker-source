@@ -165,8 +165,39 @@ function normalize(skills){
  * Epic-manifestet giver installationsstien og "++Prime+Update59.1-CL-524913".
  * CL'et er versionens sidste led; FeatureSet er "PrimeUpdate59_1". Selve
  * build-strengen (dato.tid.CL) står i exe'en som UTF-16 — vi scanner efter
- * \d{6}\.\d{3,5}\.<CL>, så manifestets CL pinner det rigtige match. */
+ * \d{6}\.\d{3,5}\.<CL>, så manifestets CL pinner det rigtige match.
+ *
+ * Linux (6/9): Epic-manifesterne findes ikke — Legendary/Heroics installed.json
+ * er pendanten (app_name "Sugar", `version` = samme build-streng; formatet er
+ * UDLEDT, ikke målt på en Linux-maskine). Findes intet, returneres null og
+ * versionsdetektionen springes stille over — rank-relæet på collectoren dækker. */
+function versionFields(exe, appVersion){
+  const cl = String(appVersion || '').match(/CL-(\d+)/);
+  const upd = String(appVersion || '').match(/Update(\d+)(?:\.(\d+))?/i);
+  return { exe, cl: cl ? cl[1] : null,
+    featureSet: upd ? 'PrimeUpdate' + upd[1] + '_' + (upd[2] || '0') : null,
+    appVersion: appVersion || null };
+}
+function findInstallLinux(home){
+  const files = [
+    path.join(home, '.config', 'heroic', 'legendaryConfig', 'legendary', 'installed.json'),
+    path.join(home, '.config', 'legendary', 'installed.json'),
+    path.join(home, '.var', 'app', 'com.heroicgameslauncher.hgl', 'config', 'heroic', 'legendaryConfig', 'legendary', 'installed.json')
+  ];
+  for (const f of files){
+    let j; try{ j = JSON.parse(fs.readFileSync(f, 'utf8')); }catch{ continue; }
+    for (const g of Object.values(j && typeof j === 'object' ? j : {})){
+      if (!g || typeof g !== 'object' || !g.install_path) continue;
+      if (!/rocket\s*league/i.test(String(g.title || '')) && String(g.app_name || '') !== 'Sugar') continue;
+      return versionFields(path.join(String(g.install_path), 'Binaries', 'Win64', 'RocketLeague.exe'), g.version ? String(g.version) : null);
+    }
+  }
+  return null;
+}
 function findInstall(){
+  if (process.platform !== 'win32'){
+    try{ return findInstallLinux(process.env.HOME || require('os').homedir()); }catch{ return null; }
+  }
   try{
     const dir = 'C:\\ProgramData\\Epic\\EpicGamesLauncher\\Data\\Manifests';
     for (const f of fs.readdirSync(dir)){
@@ -675,5 +706,5 @@ function init(opts){
   return { init: true, configured, ready, available, ensure, getSkills, loginUrl, loginWithCode, logout, status, close, normalize };
 }
 
-module.exports = { init, normalize, buildIdOf, mmrOf, detectVersion, findInstall, TIERS, PSY,
+module.exports = { init, normalize, buildIdOf, mmrOf, detectVersion, findInstall, findInstallLinux, TIERS, PSY,
   isAuthReject, judgeHealth };   // vagten eksponeret til test (director/test/watcher.test.js)

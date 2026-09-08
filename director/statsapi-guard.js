@@ -15,6 +15,15 @@
  *      ligger på L:\Xbobx\rocketleague — en sti ingen gættet liste ville ramme,
  *      så manifesterne er hovedvejen, ikke en nødløsning.
  *   3. C:\Program Files\Epic Games\rocketleague (klassisk default)
+ *   Linux (6/9-2026, docs/LINUX-OVERLAY.md) — 2 og 3 erstattes af:
+ *   2L. Legendary/Heroics installed.json (~/.config/heroic/legendaryConfig/
+ *       legendary/, ~/.config/legendary/, Flatpak-Heroic under ~/.var/app/)
+ *       → install_path/TAGame/Config/DefaultStatsAPI.ini. Ini'en ligger i
+ *       INSTALLATIONSMAPPEN, ikke i Wine-prefixet.
+ *   3L. Steam: <bibliotek>/steamapps/common/rocketleague/… for ~/.steam/steam,
+ *       ~/.local/share/Steam, Flatpak-Steam og hvert "path" i libraryfolders.vdf.
+ *   gameRunning() bruger pgrep -f RocketLeague.exe (Wine/Proton beholder
+ *   exe-navnet i kommandolinjen — udledt, ikke målt; ENOENT = "ved det ikke").
  * Findes filen ikke, logges det ÉN gang og vagten tier — et board der råber
  * "ini ikke fundet" hver aften spillet er lukket, ville kun træne brugeren i
  * at ignorere den (jf. tekst-habituerings-læren).
@@ -38,6 +47,58 @@ const INI_REL = path.join('TAGame', 'Config', 'DefaultStatsAPI.ini');
 const BACKUP_SUFFIX = '.rl-tracker.bak';
 const MIN_CHECK_GAP_MS = 30e3;          // feed-drop + poll må ikke stakke tjek
 
+/* ---- Linux-finderen (6/9) — rene funktioner, testet i linux-paths.test.js ----
+ * readText(sti) -> tekst eller null; intet andet fra disken røres her. */
+const LEGENDARY_INSTALLED = home => [
+  path.join(home, '.config', 'heroic', 'legendaryConfig', 'legendary', 'installed.json'),
+  path.join(home, '.config', 'legendary', 'installed.json'),
+  path.join(home, '.var', 'app', 'com.heroicgameslauncher.hgl', 'config', 'heroic', 'legendaryConfig', 'legendary', 'installed.json')
+];
+const STEAM_ROOTS = home => [
+  path.join(home, '.steam', 'steam'),
+  path.join(home, '.local', 'share', 'Steam'),
+  path.join(home, '.var', 'app', 'com.valvesoftware.Steam', '.local', 'share', 'Steam')
+];
+/* installed.json er et objekt app_name -> {app_name, title, install_path, version, ...}.
+ * Rocket Leagues Epic-app_name er "Sugar"; titlen bærer ®-tegnet som hos Epic. */
+function parseLegendaryInstalled(text){
+  let j; try{ j = JSON.parse(text); }catch{ return []; }
+  const out = [];
+  for (const g of Object.values(j && typeof j === 'object' ? j : {})){
+    if (!g || typeof g !== 'object') continue;
+    if (!/rocket\s*league/i.test(String(g.title || '')) && String(g.app_name || '') !== 'Sugar') continue;
+    if (g.install_path) out.push({ installPath: String(g.install_path), version: g.version ? String(g.version) : null });
+  }
+  return out;
+}
+/* libraryfolders.vdf: hver "path" "/mnt/games/SteamLibrary" er et bibliotek til. */
+function parseLibraryFolders(text){
+  const out = [];
+  const rx = /"path"\s+"((?:\\.|[^"\\])*)"/g;
+  let m; while ((m = rx.exec(String(text || '')))) out.push(m[1].replace(/\\\\/g, '\\'));
+  return out;
+}
+function linuxIniCandidates(home, readText){
+  const out = [];
+  for (const f of LEGENDARY_INSTALLED(home)){
+    const t = readText(f);
+    if (t) for (const g of parseLegendaryInstalled(t)) out.push(path.join(g.installPath, INI_REL));
+  }
+  const libs = [];
+  for (const root of STEAM_ROOTS(home)){
+    const apps = path.join(root, 'steamapps');
+    libs.push(apps);
+    const vdf = readText(path.join(apps, 'libraryfolders.vdf'));
+    if (vdf) for (const p of parseLibraryFolders(vdf)) libs.push(path.join(p, 'steamapps'));
+  }
+  for (const apps of libs){
+    const p = path.join(apps, 'common', 'rocketleague', INI_REL);
+    if (!out.includes(p)) out.push(p);
+  }
+  return out;
+}
+const readTextOrNull = p => { try{ return fs.readFileSync(p, 'utf8'); }catch{ return null; } };
+
 function init(opts){
   const log = (opts && opts.log) || (() => {});
   const desiredRate = Math.min(120, Math.max(1, Number(opts && opts.desiredRate) || 120));
@@ -55,6 +116,15 @@ function init(opts){
     if (iniOverride) return iniOverride;         // også når den mangler: fejlen skal ses, ikke omgås
     if (cachedIni && fs.existsSync(cachedIni)) return cachedIni;
     cachedIni = null;
+    if (process.platform !== 'win32'){
+      /* Linux/macOS: Epic-manifesterne og C:\-stierne findes ikke — Windows-
+       * grenen nedenfor røres ikke, den springes blot over. */
+      const home = process.env.HOME || require('os').homedir();
+      for (const p of linuxIniCandidates(home, readTextOrNull)){
+        if (fs.existsSync(p)){ cachedIni = p; return p; }
+      }
+      return null;
+    }
     try{
       for (const f of fs.readdirSync(MANIFEST_DIR)){
         if (!f.endsWith('.item')) continue;
@@ -76,6 +146,14 @@ function init(opts){
 
   function gameRunning(){
     return new Promise(resolve => {
+      if (process.platform !== 'win32'){
+        /* pgrep: exit 0 = fundet, 1 = intet match, ENOENT = intet pgrep -> ukendt */
+        try{
+          execFile('pgrep', ['-f', 'RocketLeague\\.exe'], { timeout: 10e3 },
+            (err, stdout) => resolve(err ? (err.code === 1 ? false : null) : String(stdout).trim().length > 0));
+        }catch{ resolve(null); }
+        return;
+      }
       try{
         execFile('tasklist', ['/FI', 'IMAGENAME eq RocketLeague.exe', '/NH', '/FO', 'CSV'],
           { windowsHide: true, timeout: 10e3 },
@@ -138,7 +216,9 @@ function init(opts){
       s.error = 'ini-ikke-fundet';
       if (!warnedNotFound){
         warnedNotFound = true;
-        log('[statsapi] DefaultStatsAPI.ini ikke fundet (Epic-manifester + kendte stier) — sæt STATSAPI_INI hvis spillet ligger utraditionelt');
+        log('[statsapi] DefaultStatsAPI.ini ikke fundet (' + (process.platform === 'win32'
+          ? 'Epic-manifester + kendte stier' : 'Legendary/Heroic installed.json + Steam-biblioteker')
+          + ') — sæt STATSAPI_INI hvis spillet ligger utraditionelt');
       }
       return publish(s);
     }
@@ -199,4 +279,6 @@ function init(opts){
   };
 }
 
-module.exports = { init };
+module.exports = { init,
+  /* Linux-finderens rene dele — til linux-paths.test.js, ikke til serveren */
+  linuxIniCandidates, parseLegendaryInstalled, parseLibraryFolders, LEGENDARY_INSTALLED, STEAM_ROOTS, INI_REL };

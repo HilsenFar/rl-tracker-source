@@ -765,17 +765,31 @@ function computeMetrics(digest, me){
  *
  * So find the turn first, then search the half the goal actually belongs to,
  * in that half's own direction. Roughly one match in twelve goes to overtime.
+ *
+ * The curve also often starts BEFORE the kickoff: the feed attaches during the
+ * previous match's ending, so the first buckets carry that match's clock (say
+ * 115, then 300) — 273 of the archive's 1007 curves on 6/9, 50 of 150 in
+ * overtime matches. A plain "first rise" fired on that head (115 -> 300), so
+ * regulation goals resolved into the stale head and overtime goals onto the
+ * kickoff bucket. Everything before the curve's highest t is that head; the
+ * turn must come after it AND rise from t <= OT_TURN_MAX_PREV (overtime
+ * counts up from 0, so 115 -> 300 is never overtime). Same rule as
+ * pitch.liveFrom/otTurn over hitEvents.
  */
+const OT_TURN_MAX_PREV = 10;
 function curveIndexAt(t, g){
   if (!Array.isArray(t) || !t.length) return -1;
+  let peak = 0;
+  for (let i = 1; i < t.length; i++) if (t[i] > t[peak]) peak = i;
   let turn = -1;
-  for (let i = 1; i < t.length; i++) if (t[i] > t[i - 1]){ turn = i; break; }
+  for (let i = peak + 1; i < t.length; i++)
+    if (typeof t[i - 1] === 'number' && t[i] > t[i - 1] && t[i - 1] <= OT_TURN_MAX_PREV){ turn = i; break; }
   if (g && g.ot && turn >= 0){
     for (let i = turn; i < t.length; i++) if (t[i] >= g.clock) return i;
     return t.length - 1;                    // golden goal: the curve ends on it
   }
   const end = turn >= 0 ? turn : t.length;
-  for (let i = 0; i < end; i++) if (t[i] <= g.clock) return i;
+  for (let i = peak; i < end; i++) if (t[i] <= g.clock) return i;
   return -1;
 }
 
@@ -829,7 +843,7 @@ function fmt(id, v){
 }
 
 module.exports = { MIN_BASELINE, EWMA_ALPHA, BOOST_LOW_AT, DEFS, playlistOf, validity, resultOf,
-  attackSign, computeMetrics, snapshotAndFold, fmt, ranked, coachable, curveIndexAt,
+  attackSign, computeMetrics, snapshotAndFold, fmt, ranked, coachable, curveIndexAt, OT_TURN_MAX_PREV,
   UNITS, configureUnits, detectUnit, currentUnit, unitFor, labelWithUnit, slowThreshold,
   configureLanguage, currentLanguage,
   PLAYLIST_NAMES, PRIVATE_PLAYLIST_IDS, playlistIdOf, playlistNameOf, privacyOf, isPrivate, privateLabel,

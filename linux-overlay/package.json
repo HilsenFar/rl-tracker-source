@@ -1,0 +1,19 @@
+{
+  "name": "rl-overlay-linux",
+  "version": "0.1.0",
+  "private": true,
+  "description": "RL Live Tracker overlay host for Linux (Electron prototype). Shows the same ?overlay&glass page as RLOverlay.exe does on Windows.",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "start:x11": "electron . --ozone-platform=x11",
+    "start:wayland": "RL_OZONE=wayland electron .",
+    "start:nogame": "RL_OVERLAY_GAMEWATCH=0 electron ."
+  },
+  "devDependencies": {
+    "electron": "42.11.2"
+  },
+  "engines": {
+    "node": ">=22.12"
+  }
+}

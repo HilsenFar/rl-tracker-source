@@ -25,9 +25,12 @@ const M = require('./metrics');
 const store = require('./store');
 const reportTheme = require('./report-theme');   // FULD GAS 27/8: de fire temaer
 const packs = require('./packs');
+const T = require('./tier');   // spillerens tier (8/9): vinduet en bane skal ligge i
 const focusEngine = require('./focus');
 const voice = require('./voice');
 const persona = require('./persona');
+const pitch = require('./pitch');       // baneradar (7/9): skudstederne for ugens kampe
+const radar = require('./radar');
 
 /* A Rocket League evening routinely runs past midnight, so a calendar day cuts
  * sessions in half: the 02:12 matches on Monday belong to Sunday's play. The
@@ -595,59 +598,258 @@ function proofFor(timeline, allMatches, wk){
 
 /* ---------------- pack + mission picking ---------------- */
 
+/* Erstatningens tillaeg til begrundelsen (8/9): hvad den erstatter, og vinduet
+ * ("baner paa Champion-niveau (±1)"). Tom for bankens egne baner. */
+function subReason(p, info, en){
+  if (!p || !p.substitute) return '';
+  const f = p.substitute.for;
+  const tiers = f && f.tiers && f.tiers.length ? (f.tiers.length > 1 ? f.tiers[0] + '–' + f.tiers[f.tiers.length - 1] : f.tiers[0]) : null;
+  return en
+    ? ' Replaces ' + (f ? f.name + (tiers ? ' (' + tiers + ' pack)' : '') : "the bank's pack") + ': ' + info.short.en + '.'
+    : ' Erstatter ' + (f ? f.name + (tiers ? ' (' + tiers + '-bane)' : '') : 'bankens bane') + ': ' + info.short.da + '.';
+}
+
+/* Kortets form for en bank-bane eller dens erstatning (difficulty/substitute
+ * kun paa erstatninger, saa aeldre rapporter og ejerens er uaendrede). */
+function packCard(p, extra){
+  const o = Object.assign({ id: p.id, name: p.name, code: p.code, source: p.source }, extra || {});
+  if (p.difficulty) o.difficulty = p.difficulty;
+  if (p.substitute) o.substitute = p.substitute;
+  return o;
+}
+
 /* One primary pack, justified by a measured number, plus the warm-up (the
- * player measured its effect himself) and at most one goal-based pack. */
-function pickPacks(trends, signals, lastPrimary){
+ * player measured its effect himself) and at most one goal-based pack.
+ * Tier (8/9, tier.js): hver bank-bane skal passe spillerens vindue [tier-1,
+ * tier+1]; ellers svarer en Prejump-bane med SAMME behov paa hans niveau
+ * (packs.NEEDS). Ejeren (Silver) faar praecis de baner han fik foer. */
+function pickPacks(trends, signals, lastPrimary, info){
+  const tierInfo = info || T.DEFAULT_INFO;
   const cands = [];
+  const taken = () => new Set(cands.map(c => c.code));
+  const fitOrSub = (p, need) => packs.fitOrSubstitute(p, need, tierInfo, { exclude: taken() });
   const mature = trends.filter(t => t.mature && t.goodness !== null && t.goodness < 0)
     .sort((a, b) => a.goodness - b.goodness);
   const en = EN();
   for (const t of mature){
-    for (const p of packs.forMetric(t.id)){
-      if (cands.some(c => c.id === p.id)) continue;
+    for (const p0 of packs.forMetric(t.id)){
+      const p = fitOrSub(p0, t.id);
+      if (!p || cands.some(c => c.id === p.id)) continue;
       cands.push({ ...p, score: -t.goodness,
-        reason: en
+        reason: (en
           ? cap(t.label) + ' in ' + t.playlist + ': ' + M.fmt(t.id, t.weekAvg) + ' on average this week against your normal '
             + M.fmt(t.id, t.normStart) + ' (' + pctS(t.deltaPct) + ') — ' + (p.whatEn || p.what) + '.'
           : cap(t.label) + ' i ' + t.playlist + ': ' + M.fmt(t.id, t.weekAvg) + ' i snit i ugen mod normalt '
-            + M.fmt(t.id, t.normStart) + ' (' + pctS(t.deltaPct) + ') — ' + p.what + '.' });
+            + M.fmt(t.id, t.normStart) + ' (' + pctS(t.deltaPct) + ') — ' + p.what + '.') + subReason(p, tierInfo, en) });
     }
   }
   if (signals.conversion !== null && signals.shots >= 10 && signals.conversion <= 0.30)
-    for (const p of packs.forSignal('conversion')){
-      if (cands.some(c => c.id === p.id)) continue;
+    for (const p0 of packs.forSignal('conversion')){
+      const p = fitOrSub(p0, 'conversion');
+      if (!p || cands.some(c => c.id === p.id)) continue;
       cands.push({ ...p, score: 0.32 - signals.conversion,
-        reason: en
+        reason: (en
           ? signals.goals + ' goals on ' + signals.shots + ' shots this week ('
             + Math.round(signals.conversion * 100) + '%) — ' + (p.whatEn || p.what) + '.'
           : signals.goals + ' mål på ' + signals.shots + ' skud i ugen ('
-            + Math.round(signals.conversion * 100) + '%) — ' + p.what + '.' });
+            + Math.round(signals.conversion * 100) + '%) — ' + p.what + '.') + subReason(p, tierInfo, en) });
     }
   if (signals.earlyConceded >= 3)
-    for (const p of packs.forSignal('earlyConceded')){
-      if (cands.some(c => c.id === p.id)) continue;
+    for (const p0 of packs.forSignal('earlyConceded')){
+      const p = fitOrSub(p0, 'earlyConceded');
+      if (!p || cands.some(c => c.id === p.id)) continue;
       cands.push({ ...p, score: signals.earlyConceded * 0.03,
-        reason: en
+        reason: (en
           ? signals.earlyConceded + ' goals conceded in the first minute of a match this week — ' + (p.whatEn || p.what) + '.'
-          : signals.earlyConceded + ' mål indkasseret i kampens første minut i ugen — ' + p.what + '.' });
+          : signals.earlyConceded + ' mål indkasseret i kampens første minut i ugen — ' + p.what + '.') + subReason(p, tierInfo, en) });
     }
   cands.sort((a, b) => b.score - a.score);
 
   // rotation: the same primary two weeks running reads as a stuck record
   if (cands.length > 1 && cands[0].code === lastPrimary){ const t = cands[0]; cands[0] = cands[1]; cands[1] = t; }
 
-  const out = cands.slice(0, 2).map(p => ({ id: p.id, name: p.name, code: p.code, reason: p.reason, source: p.source }));
-  const warm = packs.byId('ultimate_warmup');
-  if (!out.some(p => p.id === warm.id))
-    out.push({ id: warm.id, name: warm.name, code: warm.code, source: warm.source,
-      reason: en
+  const out = cands.slice(0, 2).map(p => packCard(p, { reason: p.reason }));
+  // opvarmningen: bankens naar den passer vinduet, ellers en Prejump-Warmup-bane
+  // paa spillerens niveau — ejerens maaling 27/7 gaelder KUN ejerens egen bane
+  const warm0 = packs.byId('ultimate_warmup');
+  const warm = packs.fitOrSubstitute(warm0, 'warmup', tierInfo, { exclude: new Set(out.map(p => p.code)) });
+  if (warm && !out.some(p => p.code === warm.code))
+    out.push(packCard(warm, { reason: warm.substitute
+      ? (en
+        ? 'Warm-up before queueing — ' + (warm.whatEn || warm.what) + '.'
+        : 'Opvarmning før kø — ' + warm.what + '.') + subReason(warm, tierInfo, en)
+      : (en
         ? 'Warm-up before queueing: you measured the effect yourself on 27/7 — one hour in the training packs, and a rank-up in both 2v2 and 1v1 the same evening.'
-        : 'Opvarmning før kø: du målte selv effekten 27/7 — en time i træningsbanerne, og rank-up i både 2v2 og 1v1 samme aften.' });
-  const aer = packs.byId('aerial_shots_pass');
-  out.push({ id: aer.id, name: aer.name, code: aer.code, source: aer.source, goalOnly: true,
-    reason: en
-      ? 'Your own goal, never a measurement: the tracker measures nothing about aerials (the feed has no height or air data), so this one is here because you said you want to learn it — ' + (aer.whatEn || aer.what) + '.'
-      : 'Dit eget mål, ikke en måling: trackeren måler intet om aerials (feedet har ingen højde eller luftdata), så denne står her fordi du har sagt du vil lære det — ' + aer.what + '.' });
+        : 'Opvarmning før kø: du målte selv effekten 27/7 — en time i træningsbanerne, og rank-up i både 2v2 og 1v1 samme aften.') }));
+  // maal-banen: ejerens erklaerede aerial-maal, aldrig en maaling — paa hans niveau
+  const aer0 = packs.byId('aerial_shots_pass');
+  const aer = packs.fitOrSubstitute(aer0, 'aerials', tierInfo, { exclude: new Set(out.map(p => p.code)) });
+  if (aer && !out.some(p => p.code === aer.code))
+    out.push(packCard(aer, { goalOnly: true,
+      reason: (en
+        ? 'Your own goal, never a measurement: the tracker measures nothing about aerials (the feed has no height or air data), so this one is here because you said you want to learn it — ' + (aer.whatEn || aer.what) + '.'
+        : 'Dit eget mål, ikke en måling: trackeren måler intet om aerials (feedet har ingen højde eller luftdata), så denne står her fordi du har sagt du vil lære det — ' + aer.what + '.') + subReason(aer, tierInfo, en) }));
+  return out;
+}
+
+/* ---------------- baneradar (RADAR-DESIGN.md §5/§6, trin C2, 7/9-2026) ----------------
+ *
+ * Ugens skudsteder: pitch.contributionsFor over ugens kampfiler (de samme
+ * raekker matchesInWeek allerede har fundet — private lobbyer og mutator-
+ * kampe gaar med ind og holdes ude af pitch.js selv, talt i `excluded`),
+ * foldet, profileret med uge-gaten, og ET forsvarsvalg + HOEJST eet
+ * angrebsvalg fra radar.js. Motoren ejer alle tal; teksten er radar.reason.
+ * Langtiden (hele arkivet) bruges kun som tie-break og som "langtidsandel"
+ * i tabellen. Fejler noget herinde, staar ugerapporten uden radar — aldrig
+ * uden rapport (samme regel som stemmen). */
+
+/* pack-positions.json + katalogerne laeses EEN gang pr. proces: et byg kan
+ * mangle filen (§4a — data maa ikke i kilde-spejlet foer licensen er afklaret),
+ * og saa er puljen tag-niveauet alene. */
+let radarPosCache = null;
+function radarPositions(){
+  if (radarPosCache) return radarPosCache;
+  let positions = {}, source = null;
+  try{
+    const readJ = f => JSON.parse(fs.readFileSync(path.join(__dirname, f), 'utf8'));
+    const raw = readJ('pack-positions.json');
+    const cats = [];
+    for (const f of ['pack-catalog-prejump.json', 'pack-catalog.json', 'pack-catalog-variety.json']){ try{ cats.push(readJ(f)); }catch{} }
+    positions = radar.packZones(raw, cats) || {};
+    const first = raw[Object.keys(raw)[0]];
+    if (first && first.source && first.source.repo) source = { repo: String(first.source.repo), fetched: first.source.fetched || null };
+  }catch{ positions = {}; source = null; }
+  radarPosCache = { positions, source };
+  return radarPosCache;
+}
+/* Puljerne for EEN rapport (8/9): positions + bank filtreret til spillerens vindue,
+ * og Prejump-erstatninger for de bank-baner vinduet tog (packs.substitutesForZone). */
+function radarPools(info){
+  const positions = radarPositions().positions;
+  return zone => radar.poolFor(zone, { positions, bank: packs.BANK, tier: info,
+    substitute: (z, n, ex) => packs.substitutesForZone(z, info, { count: n, exclude: ex }) });
+}
+
+/* Ejeren i pitch.js' forstand: den sporede spiller i rodens profil (i
+ * gaestetilstand er roden gaestens egen mappe, saa det er stadig "ham"). */
+function radarOwner(){
+  try{
+    const prof = JSON.parse(fs.readFileSync(path.join(ROOT, 'profile.json'), 'utf8'));
+    return { pid: prof.trackedPid || '', name: prof.trackedName || '' };
+  }catch{ return { pid: '', name: '' }; }
+}
+
+/* Kilden for en radar-bane: BANK-posten naar koden er der (tag-niveauet), ellers
+ * positions-importens repo. Aldrig opfundet — mangler begge, ingen kildelinje. */
+function radarSource(pack){
+  if (pack && pack.source) return pack.source;   // en Prejump-erstatning baerer sin egen kilde (8/9)
+  const bankP = packs.BANK.find(b => b.code === pack.code);
+  if (bankP && bankP.source) return bankP.source;
+  const src = radarPositions().source;
+  if (pack.confidence === 'positions' && src && src.repo)
+    return { title: src.repo + (EN() ? ' (measured shot positions' : ' (målte skudpositioner') + (src.fetched ? (EN() ? ', fetched ' : ', hentet ') + src.fetched : '') + ')',
+             url: 'https://github.com/' + src.repo };
+  return null;
+}
+
+function radarPackEntry(pick){
+  const lang = EN() ? 'en' : 'da';
+  const e = { id: pick.pack.id, name: pick.pack.name, code: pick.pack.code,
+              reason: radar.reason(pick, lang), source: radarSource(pick.pack),
+              radar: true, family: pick.family, zone: pick.zone, confidence: pick.pack.confidence };
+  if (pick.pack.difficulty) e.difficulty = pick.pack.difficulty;   // Prejump-erstatning (8/9)
+  if (pick.pack.substitute) e.substitute = pick.pack.substitute;
+  return e;
+}
+
+/* Ugens radar: {radar, entries}. `rows` er matchesInWeek-raekkerne (alle,
+ * ogsaa private). */
+function buildRadar(wk, rows, info){
+  const owner = radarOwner();
+  const dir = path.join(ROOT, 'matches');
+  const files = rows.map(r => r.file).filter(Boolean).sort();
+  const fold = pitch.foldEntries(pitch.contributionsFor(dir, files, owner));
+  const agg = pitch.aggregate(dir, owner);
+  const longRun = radar.profile(agg.concededFrom, radar.WEEK_GATE);
+  const longOff = radar.offenseProfile(agg.scoredFrom, agg.mineZones, { window: 'week' });
+  const prof = radar.profile(fold.concededFrom, Object.assign({}, radar.WEEK_GATE, { week: wk.week }));
+  const off = radar.offenseProfile(fold.scoredFrom, fold.mineZones, { window: 'week', week: wk.week });
+  const pools = radarPools(info || T.DEFAULT_INFO);
+  // rotation over ugerapporternes egen historik (pack/shown/radar), kontrakten §5
+  const ctx = { pools, history: state.packHistory };
+  const pick = radar.pickDefensive(prof, longRun, ctx);
+  const whyDef = pick ? null : radar.whyNoPick(prof, longRun, ctx);
+  // angrebet maa ikke lande paa forsvarets bane (en positions-bane kan daekke baade D og O)
+  const ctxO = pick ? { pools: z => pools(z).filter(p => p.code !== pick.pack.code), history: state.packHistory } : ctx;
+  const pickO = radar.pickOffensive(off, ctxO);
+  const whyOff = pickO ? null : radar.whyNoPick(off, null, ctxO);
+
+  const zones = {};
+  for (const z of Object.keys(prof.zones))
+    zones[z] = { n: prof.zones[z].n, share: prof.zones[z].share,
+                 longShare: longRun.zones[z] ? longRun.zones[z].share : null, longN: longRun.zones[z] ? longRun.zones[z].n : null };
+  const offZones = {};
+  for (const z of Object.keys(off.zones))
+    offZones[z] = Object.assign({}, off.zones[z], { longPer100: longOff.zones[z] ? longOff.zones[z].per100 : null });
+  // markeret = VALGETS zone (pick.zone), aldrig profilens dominerende: ved
+  // lighed kan tie-break/rotation have valgt en anden zone end den foerste
+  const marked = {
+    def: pick ? { zone: pick.zone, n: pick.counts.zoneN, located: pick.counts.located, share: pick.counts.share,
+                  longShare: zones[pick.zone].longShare, label: radar.zoneLabel(pick.zone) } : null,
+    off: pickO ? { zone: pickO.zone, goals: pickO.counts.goals, touches: pickO.counts.touches, per100: pickO.counts.per100,
+                   frontPer100: pickO.counts.frontPer100, label: radar.zoneLabel(pickO.zone) } : null
+  };
+  const entries = [];
+  if (pick) entries.push(radarPackEntry(pick));
+  if (pickO) entries.push(radarPackEntry(pickO));
+  return {
+    radar: {
+      window: 'week', key: wk.key, week: wk.week, matches: fold.matches, files: files.length,
+      conceded: { n: prof.n, located: prof.located, noX: prof.noX, noZ: prof.noZ, ko: prof.ko, zones, dominant: prof.dominant, gate: prof.gate },
+      offense: { n: off.n, located: off.located, noX: off.noX, ko: off.ko, zones: offZones, front: off.front, weak: off.weak, gate: off.gate },
+      longRun: { matches: agg.matches, n: longRun.n, located: longRun.located, front: longOff.front },
+      marked, excluded: fold.excluded, unbound: fold.unbound,
+      gate: { ok: prof.gate.ok, reason: prof.gate.reason },
+      // radar.pickDefensive/pickOffensive-formen: {family, zone, pack:{id,name,code,confidence}, counts, reason:{da,en}}
+      picks: { def: pick, off: pickO },
+      why: { def: whyDef, off: whyOff },
+      orientationVerified: radar.ORIENTATION_VERIFIED
+    },
+    entries
+  };
+}
+
+/* Radar-banerne ind i listen (§5): forsvaret paa plads 2 efter den primaere
+ * maalte kobling — plads 1 kun naar ingen maalt bane er valgt — og angrebet
+ * lige efter forsvaret; begge foer opvarmningen og maal-banen. Staar samme
+ * kode allerede som MAALT bane (fx Saves via earlyConceded-signalet), vises
+ * den EEN gang: den maalte kobling beholder pladsen, og radar-begrundelsen
+ * rider med paa den. Er dubletten maal-banen (aerial-oensket, goalOnly),
+ * rykker radar-kortet op i dens sted: radaren HAR maalt noget om den, saa
+ * maal-kortets "trackeren maaler intet" er ikke sandt laengere og maa IKKE
+ * genbruges (det ville modsige radar-begrundelsen paa samme kort, og §5
+ * forbyder aerial-ordet paa et radar-kort). Oensket staar som EEN kort
+ * linje uden maale-paastand (`goalReason`). */
+function placeRadarPacks(packList, entries){
+  const out = packList.slice();
+  const firstNonMeasured = () => { const i = out.findIndex(p => p.radar || p.id === 'ultimate_warmup' || p.goalOnly); return i < 0 ? out.length : i; };
+  let after = -1;   // indekset for det seneste radar-kort: angrebet foelger forsvaret
+  for (const e of entries){
+    const di = out.findIndex(p => p.code === e.code);
+    if (di >= 0 && !out[di].goalOnly){
+      Object.assign(out[di], { radar: true, family: e.family, zone: e.zone, confidence: e.confidence, radarReason: e.reason });
+      after = di;
+      continue;
+    }
+    if (di >= 0){
+      e.goalReason = EN() ? 'Also your own wish: you said you want to learn this one.' : 'Står også som dit eget ønske: du har sagt du vil lære den.';
+      if (!e.source) e.source = out[di].source;
+      out.splice(di, 1);
+    }
+    const at = after >= 0 ? after + 1 : Math.min(1, firstNonMeasured());
+    out.splice(at, 0, e);
+    after = at;
+  }
   return out;
 }
 
@@ -764,7 +966,18 @@ function buildReport(wk, opts){
 
   const signals = { conversion, goals, shots, earlyConceded };
   const lastPrimary = state.packHistory.length ? state.packHistory[state.packHistory.length - 1].pack : null;
-  const packList = pickPacks(trends, signals, lastPrimary);
+  // spillerens tier (8/9): ugerapporten er ejerens, saa hans kurve taeller med;
+  // ukendt → Silver, og rapporten siger det (report.tier)
+  const tierInfo = T.load(ROOT, radarOwner().pid, { history: true });
+  let packList = pickPacks(trends, signals, lastPrimary, tierInfo);
+
+  // baneradaren (7/9): ugens skudsteder → een forsvarsbane + hoejst een angrebsbane
+  let radarSec = null;
+  try{
+    const rr = buildRadar(wk, allInWeek, tierInfo);
+    radarSec = rr.radar;
+    packList = placeRadarPacks(packList, rr.entries);
+  }catch(e){ log('[weekly] radar fejlede (rapporten staar uden): ' + (e && e.message || e)); radarSec = null; }
 
   // next week's focus: the worst mature trend, aiming at the player's own normal.
   // Not just printed: once this report is closed, focus.pick() puts it on the
@@ -866,6 +1079,10 @@ function buildReport(wk, opts){
     modes, modesText: modesText(modes, EN()), coverage,
     days: dayList, playlists, trends, strongest, weakest, byKeyOrder: Object.keys(byKey),
     proof, rank, focusNext, missions, packs: packList,
+    // baneradaren (RADAR-DESIGN.md §6): hvor de scorer paa ham, hvor han sjaeldent scorer fra
+    radar: radarSec,
+    // spillerens tier og vindue (8/9): hvilket niveau banerne er valgt til, og hvorfra ranken kom
+    tier: tierInfo,
     // startedAt, not `at`: `at` is when the report was GENERATED, which for a
     // session that ran past midnight is the next calendar day — a session
     // stamped "27. juli" inside a report titled 20.–26. juli looks like a bug
@@ -923,7 +1140,16 @@ function write(r){
   }catch(e){ log('[weekly] rapport-fejl: ' + (e.message || e)); return false; }
   state.lastReport = r;
   if (!state.written.includes(r.key)) state.written.push(r.key);
-  if (r.packs && r.packs.length) state.packHistory.push({ pack: r.packs[0].code, at: r.at });
+  if (r.packs && r.packs.length){
+    // `pack` = plads 1 (aeldre poster har kun den): den primaere maalte
+    // kobling — eller RADAR-koden, naar ugen ingen maalt bane har (saa staar
+    // radaren paa plads 1, §5). pickPacks' lastPrimary-bytte laeser den
+    // uaendret. `shown` og `radar` er additive (7/9) og foeder radar.js'
+    // rotation: aldrig forrige rapports radar-kode, mindst-nyligt-vist i
+    // zonens pulje
+    const rd = r.packs.find(p => p.radar && p.family === 'def') || r.packs.find(p => p.radar) || null;
+    state.packHistory.push({ pack: r.packs[0].code, at: r.at, shown: r.packs.map(p => p.code), radar: rd ? rd.code : null });
+  }
   state.packHistory = state.packHistory.slice(-20);
   save();
   log('[weekly] ugerapport klar: ' + r.name + ' — ' + r.headline);
@@ -972,6 +1198,14 @@ function summary(r){
       ? r.missions.map(m => ({ id: m.id, playlist: m.playlist, text: m.text })) : [],
     headline: r.headline, lines: r.lines,
     focusNext: r.focusNext ? { headline: r.focusNext.headline, why: r.focusNext.why } : null,
+    // baneradaren til boardet (7/9): de markerede zoner + valgene; null paa
+    // rapporter gemt foer feltet fandtes
+    radar: r.radar ? {
+      key: r.radar.key, marked: r.radar.marked, gate: r.radar.gate,
+      excluded: r.radar.excluded, unbound: r.radar.unbound,
+      picks: { def: r.radar.picks && r.radar.picks.def ? { code: r.radar.picks.def.pack.code, name: r.radar.picks.def.pack.name, zone: r.radar.picks.def.zone, confidence: r.radar.picks.def.pack.confidence } : null,
+               off: r.radar.picks && r.radar.picks.off ? { code: r.radar.picks.off.pack.code, name: r.radar.picks.off.pack.name, zone: r.radar.picks.off.zone, confidence: r.radar.picks.off.pack.confidence } : null },
+      why: r.radar.why || null, orientationVerified: !!r.radar.orientationVerified } : null,
     proof: r.proof.map(p => ({ label: p.label, playlist: p.playlist, verdict: p.verdict,
                                verdictShown: p.verdictShown || verdictShown(p.verdict),
                                afterText: p.afterAvg === null ? null : M.fmt(p.metricId, p.afterAvg),
@@ -1206,11 +1440,89 @@ function renderHTML(r){
   const srcTitle = st => EN
     ? st.replace('Lander1984s ratede masterliste', 'Lander1984’s rated master list').replace('begynder-venlig', 'beginner-friendly')
     : st;
-  const packsHtml = r.packs.map((p, i) =>
-    '<div class="card"><div class="plhead"><strong>' + (i === 0 && !p.goalOnly ? (EN ? 'Primary: ' : 'Primær: ') : '') + esc(p.name) + '</strong>' +
-    '<span class="code">' + esc(p.code) + '</span></div><p>' + esc(p.reason) + '</p>' +
+  /* Radar-baner (7/9): praefiks "Radar:" som afvekslingens "Afveksling:", og
+   * kilde-niveauet som chip — 'tags' er katalogets ord, 'skudpositioner' er
+   * maalte skud. En maalt bane der OGSAA er radarens (samme kode) beholder
+   * sin plads og faar radar-begrundelsen som ekstra afsnit. Et RENT radar-
+   * kort hedder "Radar:" uanset plads — ogsaa paa plads 1, naar ugen ingen
+   * maalt bane har (§6); "Primær:" er den maalte koblings ord. */
+  const confChip = p => p.radar
+    ? '<span class="chip">' + (p.confidence === 'positions' ? (EN ? 'shot positions' : 'skudpositioner') : 'tags') + '</span>' : '';
+  const prefix = (p, i) => p.radar && !p.radarReason ? 'Radar: ' : i === 0 && !p.goalOnly ? (EN ? 'Primary: ' : 'Primær: ') : '';
+  // spillerens niveau (8/9): een linje over banerne — vinduet, og hvor ranken kom fra;
+  // en Prejump-erstatning baerer sit eget niveau som chip
+  const tierHtml = r.tier && r.tier.reason ? '<p class="muted">' + esc(r.tier.reason[EN ? 'en' : 'da']) + '</p>' : '';
+  const diffChip = p => p.difficulty ? '<span class="chip">' + esc(p.difficulty) + '</span>' : '';
+  const packsHtml = tierHtml + r.packs.map((p, i) =>
+    '<div class="card"><div class="plhead"><strong>' + prefix(p, i) + esc(p.name) + '</strong>' +
+    diffChip(p) + confChip(p) + '<span class="code">' + esc(p.code) + '</span></div><p>' + esc(p.reason) + '</p>' +
+    (p.radarReason ? '<p>Radar: ' + esc(p.radarReason) + '</p>' : '') +
+    (p.goalReason ? '<p class="muted">' + esc(p.goalReason) + '</p>' : '') +
     (p.source ? '<p class="src">' + (EN ? 'Source: ' : 'Kilde: ') + '<a href="' + esc(p.source.url) + '" rel="noopener">' + esc(srcTitle(p.source.title)) + '</a></p>' : '') +
     '</div>').join('');
+
+  /* Baneradarens kort (RADAR-DESIGN.md §6): to zonetabeller (tal, andel,
+   * langtidsandel), de markerede zoner, kilde-chip, gate-/hvorfor-tekst og
+   * aerlighedschips (§9). Zonernes ord er radar.js' egne: siderne hedder
+   * "(+x)/(−x)" i tabellen og "siden af dit forsvar" i teksten — aldrig
+   * venstre/hoejre foer orienteringen er set i spillet. Ingen saetning om
+   * rotation eller hvor spilleren stod: positionen er BOLDENS ved skyttens
+   * sidste beroering. */
+  const rd = r.radar || null;
+  const pc = x => Math.round((x || 0) * 100) + ' %';
+  const rate = v => Number.isFinite(v) ? (v >= 10 ? String(Math.round(v)) : String(Math.round(v * 10) / 10).replace('.', EN ? '.' : ',')) : '–';
+  const zl = z => { const lbl = radar.ZONES.find(x => x.id === z); return lbl ? (EN ? lbl.label.en : lbl.label.da) : z; };
+  let radarHtml = '';
+  if (rd){
+    const mDef = rd.marked && rd.marked.def, mOff = rd.marked && rd.marked.off;
+    const defRows = Object.keys(rd.conceded.zones).map(z => {
+      const v = rd.conceded.zones[z];
+      const mark = mDef && mDef.zone === z ? ' <span class="tag bad">' + (EN ? 'marked' : 'markeret') + '</span>' : '';
+      return '<tr><td>' + esc(zl(z)) + mark + '</td><td class="num">' + v.n + '</td><td class="num">' + pc(v.share) + '</td>' +
+        '<td class="num muted">' + (v.longShare === null ? '–' : pc(v.longShare)) + '</td></tr>';
+    }).join('');
+    const offRows = Object.keys(rd.offense.zones).map(z => {
+      const v = rd.offense.zones[z];
+      const mark = mOff && mOff.zone === z ? ' <span class="tag good">' + (EN ? 'marked' : 'markeret') + '</span>' : '';
+      return '<tr><td>' + esc(zl(z)) + mark + '</td><td class="num">' + v.goals + '</td><td class="num">' + v.touches + '</td>' +
+        '<td class="num">' + rate(v.per100) + '</td><td class="num muted">' + rate(v.longPer100) + '</td></tr>';
+    }).join('');
+    const pDef = rd.picks && rd.picks.def, pOff = rd.picks && rd.picks.off;
+    const srcChip = p => '<span class="chip">' + (p.pack.confidence === 'positions' ? (EN ? 'shot positions' : 'skudpositioner') : 'tags') + '</span>';
+    const defLine = pDef
+      ? '<p><strong>' + (EN ? 'Marked for defence: ' : 'Markeret til forsvar: ') + esc(EN ? mDef.label.en : mDef.label.da) + '</strong> — '
+        + mDef.n + (EN ? ' of ' : ' af ') + mDef.located + (EN ? ' located (' : ' stedfæstede (') + pc(mDef.share)
+        + (mDef.longShare === null ? '' : (EN ? '; long run ' : '; langtid ') + pc(mDef.longShare)) + ') → ' + esc(pDef.pack.name)
+        + ' <span class="code">' + esc(pDef.pack.code) + '</span> ' + srcChip(pDef) + '</p>'
+      : '<p><strong>' + (EN ? 'Defence: no pack' : 'Forsvar: ingen bane') + '</strong> — ' + esc(rd.why && rd.why.def ? (EN ? rd.why.def.en : rd.why.def.da) : (EN ? rd.gate.reason.en : rd.gate.reason.da)) + '</p>';
+    const offLine = pOff
+      ? '<p><strong>' + (EN ? 'Marked for offence: ' : 'Markeret til angreb: ') + esc(EN ? mOff.label.en : mOff.label.da) + '</strong> — '
+        + mOff.goals + (EN ? ' goals on ' : ' mål på ') + mOff.touches + (EN ? ' touches (' : ' berøringer (') + rate(mOff.per100) + (EN ? ' per 100) against ' : ' pr. 100) mod ')
+        + rate(mOff.frontPer100) + (EN ? ' per 100 in front of their goal → ' : ' pr. 100 foran deres mål → ') + esc(pOff.pack.name)
+        + ' <span class="code">' + esc(pOff.pack.code) + '</span> ' + srcChip(pOff) + '</p>'
+      : '<p><strong>' + (EN ? 'Offence: no pack' : 'Angreb: ingen bane') + '</strong> — ' + esc(rd.why && rd.why.off ? (EN ? rd.why.off.en : rd.why.off.da) : (EN ? rd.offense.gate.reason.en : rd.offense.gate.reason.da)) + '</p>';
+    const c = rd.conceded, ex = rd.excluded || { private: 0, mutators: 0 };
+    const chips2 = [
+      c.located + (EN ? ' of ' : ' af ') + c.n + (EN ? ' conceded located' : ' indkasserede stedfæstet'),
+      c.ko ? c.ko + (EN ? ' kickoff goals counted separately' : ' kickoff-mål talt for sig') : null,
+      c.noX ? c.noX + (EN ? ' without x (not located)' : ' uden x (ikke stedfæstet)') : null,
+      (ex.private || ex.mutators) ? (EN ? 'excluded: ' : 'udeladt: ') + [ex.private ? ex.private + (EN ? ' private' : ' private') : null, ex.mutators ? ex.mutators + ' mutator' : null].filter(Boolean).join(' · ') : null,
+      rd.unbound ? rd.unbound + (EN ? ' unbound goals' : ' ubundne mål') : null,
+      rd.orientationVerified ? null : (EN ? 'orientation not verified' : 'orientering ikke verificeret')
+    ].filter(Boolean).map(x => '<span class="chip">' + esc(x) + '</span>').join('');
+    radarHtml = '<h2>' + (EN ? 'Where they score on you · where you rarely score from' : 'Hvor de scorer på dig · hvor du sjældent scorer fra') + '</h2>\n' +
+      '<div class="card"><div class="plhead"><strong>' + (EN ? 'Week ' + rd.week : 'Uge ' + rd.week) + ' · ' + rd.matches + (EN ? ' matches' : ' kampe') + '</strong>' + chips2 + '</div>' +
+      defLine + offLine +
+      '<div class="scroll"><table><thead><tr><th>' + (EN ? 'Conceded from' : 'Indkasseret fra') + '</th><th class="num">' + (EN ? 'Goals' : 'Mål') + '</th><th class="num">' + (EN ? 'Share' : 'Andel') + '</th><th class="num">' + (EN ? 'Long run' : 'Langtid') + '</th></tr></thead><tbody>' + defRows + '</tbody></table></div>' +
+      '<div class="scroll" style="margin-top:10px"><table><thead><tr><th>' + (EN ? 'Your own goals from' : 'Egne mål fra') + '</th><th class="num">' + (EN ? 'Goals' : 'Mål') + '</th><th class="num">' + (EN ? 'Touches' : 'Berøringer') + '</th><th class="num">' + (EN ? 'Per 100' : 'Pr. 100') + '</th><th class="num">' + (EN ? 'Long run per 100' : 'Langtid pr. 100') + '</th></tr></thead><tbody>' + offRows + '</tbody></table></div>' +
+      '<p class="muted" style="font-size:12.5px">' + (EN
+        ? 'A zone is the BALL’s position at the scorer’s last touch before the goal (in a dribble: the last touch); height is the ball’s, not the car’s. ' +
+          'Long run = share over the whole archive (' + rd.longRun.located + ' located conceded goals). Matches before 26 Aug have no x and cannot be located; unbound goals are counted, never guessed; ' +
+          'private lobbies and unlimited-boost matches stay out of the radar. Zones D6/O6 never drive a pack. Sides read (+x)/(−x) until the orientation has been verified in the game.'
+        : 'En zone er BOLDENS position ved skyttens sidste berøring før målet (ved en dribling: sidste touch); højden er boldens, ikke bilens. ' +
+          'Langtid = andel over hele arkivet (' + rd.longRun.located + ' stedfæstede indkasseringer). Kampe før 26/8 har ingen x og kan ikke stedfæstes; ubundne mål tælles, gættes aldrig; ' +
+          'private lobbyer og kampe med ubegrænset boost holdes ude af radaren. Zonerne D6/O6 driver aldrig en bane. Siderne hedder (+x)/(−x) indtil orienteringen er set i spillet.') + '</p></div>\n';
+  }
 
   const sessHtml = r.sessionSummaries.length ? r.sessionSummaries.map(s =>
     '<tr><td>' + esc(weekdayOf(s.day, EN) + ' ' + danishDay(s.day, EN)) + ' ' + hhmm(s.startedAt) + '–' + hhmm(s.endedAt) +
@@ -1348,6 +1660,7 @@ function renderHTML(r){
      * arkaeologi bagefter. */
     '<h2>' + (EN ? 'Missions for next week' : 'Missioner til næste uge') + '</h2>\n<div class="card">' + missionsHtml + '</div>\n' +
     '<h2>' + (EN ? 'Training packs' : 'Træningsbaner') + '</h2>\n' + packsHtml +
+    radarHtml +
     '<h2>' + (EN ? 'The evidence: did the focus move anything?' : 'Beviset: rykkede fokus noget?') + '</h2>\n' + proofHtml +
     '<h2>' + (EN ? 'Metric trends against your normal at the start of the week' : 'Metrik-trends mod din normal ved ugens start') + '</h2>\n' +
     '<div class="card"><div class="scroll"><table><thead><tr><th>' + (EN ? 'Metric' : 'Metrik') + '</th><th>Playlist</th>' +
@@ -1393,4 +1706,6 @@ function renderHTML(r){
 module.exports = { init, ensure, current, latest, latestSummary, summary, onRank, rankHistory, renderHTML,
                    applyNarrative, buildReport, currentWeek, isoWeekOf, playDay,
                    matchesInWeek, buildTrends, proofFor, focusTimeline, weekEndIso,   // pure; exported for director/test
+                   write,   // director/test/weekly-radar.test.js: skriv-vejen uden at vente paa at ugen lukker kl. 06
+                   placeRadarPacks,   // ren; director/test/weekly-radar.test.js (plads, dublet, maal-kortet)
                    MIN_WEEK_MATCHES, PROOF_MIN_MATCHES };

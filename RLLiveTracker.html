@@ -901,6 +901,24 @@ body.overlay #sapibanner{font-size:10.5px; padding:6px 9px; letter-spacing:.03em
 #updbanner .upd-x{margin-left:auto; cursor:pointer; opacity:.6; padding:0 4px;
   background:none; border:0; box-shadow:none; color:inherit; font:inherit}
 #updbanner .upd-x:hover{opacity:1}
+
+/* ── OVERLAY-CHIP ─ fullscreen-vagten (7/9): stille kort, aldrig et varsel.
+ * Vaerten (RLOverlay.exe) holder kortene parkeret, saa laenge spillet koerer
+ * exclusive fullscreen (et vindue over det ville sparke spillet ud paa
+ * skrivebordet). Chippen siger det ene, brugeren kan goere ved det, og
+ * forsvinder af sig selv i Borderless. Synlig paa main og board, ikke i
+ * overlayet selv — dér er den usynlig alligevel. */
+#ovfsbanner{display:none; margin:12px 0 0; padding:8px 14px;
+  background:var(--card); color:var(--ink); border:1px solid var(--border);
+  border-radius:var(--radius); font-size:12px; font-weight:700;
+  letter-spacing:.05em; line-height:1.45; align-items:center; gap:10px}
+#ovfsbanner.on{display:flex}
+body.overlay #ovfsbanner{display:none}
+/* Boardet er een 100vh-soejle (#board) og kender ikke elementer udenfor: en
+ * chip i flowet blev klemt til 30 px (maalt 7/9). Dér ligger den som en pille
+ * oeverst i midten, over boardet, uden at flytte paa noget. */
+body.board #ovfsbanner{position:fixed; top:12px; left:50%; transform:translateX(-50%);
+  z-index:50; margin:0; width:max-content; max-width:90vw}
 #updbanner .upd-x:focus-visible{opacity:1; box-shadow:var(--gt-focus-ring)}
 #updbanner a{color:inherit; text-decoration:none}
 body.overlay #updbanner{display:none}
@@ -1692,7 +1710,7 @@ body.nomatch .ballrow::after, body.nomatch .ballrow::before{ opacity:0; }
     inset 0 -3px 8px -4px rgba(0,0,0,.5), var(--gt-e-2);
 }
 @supports (corner-shape:bevel){
-  #focusbanner, #sapibanner, #updbanner{ corner-shape:round bevel round round; }
+  #focusbanner, #sapibanner, #updbanner, #ovfsbanner{ corner-shape:round bevel round round; }
 }
 /* filter:brightness paa en fuld plade er en malings-pass; et lysere
  * gradientstop koster ingenting. */
@@ -2057,6 +2075,15 @@ body.overlay .card{ background-image:none; box-shadow:var(--gt-e-1); }
 .pitchtoggles button:focus-visible{outline:2px solid var(--st-line); outline-offset:2px}
 .pitchstats{font-size:13.5px; color:var(--ink)}
 .pitchstats .num{font-family:var(--gt-font-ui); font-variant-numeric:tabular-nums}
+/* Zonelinjen under radaren (7/9): tal foerst, chips efter. Chippen laaner
+ * toggle-knappernes plade, men er IKKE en kontakt — ingen cursor, ingen sw. */
+.pitchradar{flex-basis:100%; font-size:12.5px; color:var(--ink2); line-height:1.6}
+.pitchradar .num{font-family:var(--gt-font-ui); font-variant-numeric:tabular-nums; color:var(--ink)}
+.pitchradar .chip{display:inline-block; margin:2px 6px 0 0; padding:2px 8px; border-radius:6px; font-size:10.5px; font-weight:700;
+  letter-spacing:var(--gt-track-label); text-transform:uppercase; background:var(--gt-sub-1); border:1px solid var(--gt-edge-bezel); color:var(--muted)}
+.pitchradar .chip.warn{color:#F85149; border-color:rgba(248,81,73,.45)}
+.pitchradar .chip.air{color:#FFB255}
+.bdf-pack .pfx, .fb-pack .pfx{font-weight:800; color:var(--st-line); margin-right:4px}
 .pitchtime{display:flex; align-items:center; gap:12px}
 .pitchtime input[type=range]{flex:0 0 150px; accent-color:var(--st-line); cursor:pointer}
 .pitchtime input[type=range]:focus-visible{outline:2px solid var(--st-line); outline-offset:3px}
@@ -2989,6 +3016,10 @@ try{ var _t = localStorage.getItem('rlls.theme.v1');
      males af updateSapiBanner() på `_statsapi`- og `_bridge`-events. -->
 <div id="sapibanner" role="status"></div>
 
+<!-- OVERLAY-CHIP (7/9): vaertens fullscreen-vagt. Tom og skjult indtil
+     overlay-status.json siger fullscreen:true; males af initOverlayFsChip(). -->
+<div id="ovfsbanner" role="status"></div>
+
 <!-- UPDATE-BANNER (14/8): dagligt versions-tjek mod releases-repoet;
      males af paintUpdBanner() på `_update`-events. -->
 <div id="updbanner" role="status"></div>
@@ -3097,6 +3128,8 @@ try{ var _t = localStorage.getItem('rlls.theme.v1');
       <div class="pitchside">
         <div class="pitchtoggles" id="pitchToggles"></div>
         <div class="pitchstats" id="pitchStats"></div>
+        <!-- baneradarens zoner (7/9): ugens indkasseringer pr. zone + chips (orientering, luft, gate) -->
+        <div class="pitchradar" id="pitchRadar"></div>
         <div class="pitchtime">
           <input type="range" id="pitchSlider" min="1" max="6" step="1" value="6">
           <span class="pitchtimelbl num" id="pitchTimeLbl"></span>
@@ -3376,6 +3409,7 @@ const T = LANG === 'en' ? {
   thBtnTitle: 'Change appearance',
   ovBtnTitle: 'Put the cards on top of the game (they appear once Rocket League is running)',
   ovRunning: 'Overlay running', ovFailed: 'Could not start', ovOpened: 'Overlay opened',
+  ovFullscreen: 'THE OVERLAY NEEDS BORDERLESS WINDOW — Rocket League: Settings → Video → Window Mode',
   ovLobbyTitle: 'Ranks in the lobby', feedSessionRep: 'Session report:',
   /* Testrunden (25/8, gate 6). Ærligheden er ikke til forhandling: teksten
    * skal sige PRÆCIS hvad et ja betyder, og at et nej betyder nul upload. */
@@ -3396,6 +3430,13 @@ const T = LANG === 'en' ? {
   pitchAll: 'Whole match', pitchMin: 'Minute {n}',
   pitchScored: 'Scored from', pitchConceded: 'Conceded from', pitchHeat: 'Heatmap',
   pitchHeatLo: 'Few touches', pitchHeatHi: 'Most touches',
+  /* baneradarens zoner (7/9): tekster der aldrig siger venstre/hoejre foer orienteringen er set i spillet */
+  pitchZones: 'Zones', pitchDefLbl: '{n} of {l} in week {w}', pitchOffLbl: '{g} goals on {t} touches',
+  pitchFromWeek: 'from week {w}', pitchAir: 'ball was in the air: {n} of {l}', pitchOrient: 'orientation not verified',
+  pitchConcFrom: 'Conceded from: ', pitchZoneNone: 'no located conceded goals this week',
+  pitchZ: { D1: 'in front of the goal (ground)', D2: 'in front of the goal (air)', side: 'from the side', D5: 'middle zone', D6: 'their third' },
+  pitchKo: '{n} kickoff goals', pitchExcl: '{n} omitted (private/mutator)', pitchNoX: '{n} not located',
+  radarPrefix: 'Radar',
   winGroup: 'Move this card', winUp: 'Move up', winDown: 'Move down', winDrag: 'Drag to move',
   pvPitch: 'Pitch radar', pvSetup: 'Setup', finalTag: 'FINAL',
   ovTitle: 'Overlay', ovBlurb: 'The overlay sits on top of the game. Choose what it carries.',
@@ -3472,6 +3513,7 @@ const T = LANG === 'en' ? {
   thBtnTitle: 'Skift udseende',
   ovBtnTitle: 'Læg kortene oven på spillet (de viser sig, når Rocket League kører)',
   ovRunning: 'Overlay kører', ovFailed: 'Kunne ikke starte', ovOpened: 'Overlay åbnet',
+  ovFullscreen: 'OVERLAYET KRÆVER BORDERLESS WINDOW — Rocket League: Settings → Video → Window Mode',
   ovLobbyTitle: 'Rank i lobbyen', feedSessionRep: 'Session-rapport:',
   /* Testrunden (25/8, gate 6) — se noten i den engelske gren. */
   trTitle: 'VÆR MED I TESTRUNDEN?',
@@ -3491,6 +3533,12 @@ const T = LANG === 'en' ? {
   pitchAll: 'Hele kampen', pitchMin: 'Minut {n}',
   pitchScored: 'Scoret fra', pitchConceded: 'Indkasseret fra', pitchHeat: 'Heatmap',
   pitchHeatLo: 'Få berøringer', pitchHeatHi: 'Flest berøringer',
+  pitchZones: 'Zoner', pitchDefLbl: '{n} af {l} i uge {w}', pitchOffLbl: '{g} mål på {t} berøringer',
+  pitchFromWeek: 'fra uge {w}', pitchAir: 'bolden var i luften: {n} af {l}', pitchOrient: 'orientering ikke verificeret',
+  pitchConcFrom: 'Indkasseret fra: ', pitchZoneNone: 'ingen stedfæstede indkasseringer i ugen',
+  pitchZ: { D1: 'foran målet (jord)', D2: 'foran målet (luft)', side: 'fra siden', D5: 'midterzone', D6: 'deres tredjedel' },
+  pitchKo: '{n} kickoff-mål', pitchExcl: '{n} udeladt (privat/mutator)', pitchNoX: '{n} ikke stedfæstet',
+  radarPrefix: 'Radar',
   winGroup: 'Flyt dette kort', winUp: 'Flyt op', winDown: 'Flyt ned', winDrag: 'Træk for at flytte',
   pvPitch: 'Baneradar', pvSetup: 'Opsætning', finalTag: 'SLUT',
   ovTitle: 'Overlay', ovBlurb: 'Overlayet ligger oven på spillet. Vælg hvad det skal bære.',
@@ -4071,12 +4119,19 @@ function focusCard(){
 /* Dagens primære træningsbane (K4W 13/8: banerne skal også fremhæves) — fra
  * seneste session-rapports packs[0]; navn og kode er motorens egne, klik
  * kopierer koden så den kan sættes ind i spillets trænings-søgning. */
+/* Banens ophav som prefix (7/9): en radar-bane (`radar:true`, RADAR-DESIGN.md
+ * §5 — valgt paa ugens zoner, som `variety:true` er afvekslingen) faar
+ * 'Radar:' foran navnet, saa ejeren kan se HVORFOR banen ligger der. Flaget
+ * kommer fra motoren (trin C1/C2); mangler det, staar navnet som foer. */
+function packPrefix(p){
+  return p && p.radar ? '<span class="pfx">' + T.radarPrefix + ':</span>' : '';
+}
 function packLine(){
   const packs = live.session && live.session.packs;
   if (!packs || !packs.length) return '';
   const p = packs[0];
   return '<div class="bdf-pack" data-code="' + esc(p.code) + '" title="' + T.copyHint + '">'
-    + gi('flask') + T.train + ': <b>' + esc(p.name) + '</b>'
+    + gi('flask') + T.train + ': ' + packPrefix(p) + '<b>' + esc(p.name) + '</b>'
     + '<span class="code">' + esc(p.code) + '</span></div>';
 }
 /* Banner-udgaven af samme fokus (K4W 13/8): kun label + mål + live-status —
@@ -4095,7 +4150,7 @@ function focusBanner(){
   const p = packs && packs.length ? packs[0] : null;
   const pack = p
     ? '<span class="fb-pack" data-code="' + esc(p.code) + '" title="' + T.copyHint + '">'
-      + gi('flask') + T.train + ': <b>' + esc(p.name) + '</b>'
+      + gi('flask') + T.train + ': ' + packPrefix(p) + '<b>' + esc(p.name) + '</b>'
       + '<span class="code">' + esc(p.code) + '</span></span>'
     : '';
   return '<span class="fb-label">' + gi('target') + T.focus + '</span>'
@@ -5457,6 +5512,30 @@ function initOverlayBtn(){
   };
 }
 
+/* Fullscreen-chippen (7/9): vaerten skriver overlay-status.json med
+ * fullscreen:true, naar spillet koerer exclusive fullscreen og kortene derfor
+ * er parkeret uden for skaermen (et vindue over spillet ville sparke det ud paa
+ * skrivebordet — overlay-host/Program.cs). Spoerg stille hvert 5. sekund, kun
+ * statusfilen (?status = ingen tasklist), paa main og board; overlayet selv
+ * spoerger ikke. Uden exe ved siden af serveren stopper pollet efter foerste
+ * svar. Chippen forsvinder af sig selv i Borderless eller naar spillet lukkes. */
+function initOverlayFsChip(){
+  const el = $('ovfsbanner');
+  if (!el || OVERLAY || !HTTP) return;
+  let timer = null;
+  const paint = on => { el.textContent = on ? T.ovFullscreen : ''; el.classList.toggle('on', !!on); };
+  const poll = () => fetch('/api/overlay?status')
+    .then(r => r.ok ? r.json() : null)
+    .then(j => {
+      if (!j) return;
+      if (!j.available){ paint(false); if (timer){ clearInterval(timer); timer = null; } return; }
+      paint(!!j.fullscreen);
+    })
+    .catch(() => {});
+  poll();
+  timer = setInterval(poll, 5000);
+}
+
 /* ---------------- rank tracking ----------------
  * The game's local Stats API carries NO rank/MMR fields (verified against the
  * live feed), and BakkesMod is blocked by Easy Anti-Cheat in ONLINE play — so
@@ -6686,6 +6765,7 @@ adoptTrackedFromServer();
 setInterval(adoptTrackedFromServer, 30000);
 loadFormMark();
 initOverlayBtn();   // efter BOARD/OVERLAY: konstanterne er erklaeret laengere nede
+initOverlayFsChip();
 ovFetchNorm();
 setInterval(ovFetchNorm, 30000);
 renderSession();
@@ -6883,13 +6963,15 @@ function pitchInit(){
    * zonen beholder sin identitet ved lav alfa; prikkerne bliver ved med at
    * baere de maettede originaler. */
   const W_MINE = '#3FE8D0', W_OPPS = '#FFB255';
-  const st = { mine: true, opps: true, scored: true, conceded: true, heat: false };
+  const st = { mine: true, opps: true, scored: true, conceded: true, heat: false, zones: true };
   const TOGGLES = [
     ['mine', T.pitchMine, 'background:' + C_MINE],
     ['opps', T.pitchOpps, 'background:' + C_OPPS],
     ['scored', T.pitchScored, 'background:' + C_GOOD],
     ['conceded', T.pitchConceded, 'background:' + C_BAD],
-    ['heat', T.pitchHeat, 'background:linear-gradient(90deg,#FFE066,#E23D3D,#5C2612)']
+    ['heat', T.pitchHeat, 'background:linear-gradient(90deg,#FFE066,#E23D3D,#5C2612)'],
+    /* zonerne (7/9): de to markerede zoner fra /api/pitch.radar — roed vask = hvor de scorer paa dig, groen = hvor du sjaeldent scorer fra */
+    ['zones', T.pitchZones, 'background:linear-gradient(90deg,rgba(248,81,73,.85),rgba(53,208,140,.85))']
   ];
   const togglesEl = document.getElementById('pitchToggles');
   togglesEl.innerHTML = TOGGLES.map(t =>
@@ -6904,12 +6986,76 @@ function pitchInit(){
     paint();
   });
   /* uu -> px, LANDSKAB: laengdeaksen (y, ±5120 + maalzone til ±5500) loeber
-   * VANDRET — dit maal venstre, deres hoejre; breddeaksen (x, ±4096) lodret. */
+   * VANDRET — dit maal venstre, deres hoejre; breddeaksen (x, ±4096) lodret.
+   * SPEJLING (rettet 7/9, RADAR-DESIGN.md §6): +x er spillerens VENSTRE
+   * (RLBot-wikien, set fra eget maal mod deres). Eget maal ligger til venstre
+   * paa skaermen og spillet gaar mod hoejre, saa spillerens venstre skal
+   * ligge OEVERST — foer gav `220 + x/4096*180` +x nederst, dvs. hele
+   * breddeaksen var spejlvendt. Fortegnet er flippet her; canvas-varmekortet
+   * gaar gennem samme PW (by = cy(PW(x))), saa begge grene foelger med.
+   * ORIENTERING: +x = venstre er IKKE set i spillet endnu (radar.
+   * orientationVerified false → chippen 'orientering ikke verificeret' i
+   * panelet); indtil da siger ingen tekst venstre/hoejre. */
   const PL = y => 310 + y / 5500 * 270;               // laengde -> vandret px
-  const PW = x => 220 + x / 4096 * 180;               // bredde  -> lodret px
-  const L = PL(-5120), R = PL(5120), Tp = PW(-4096), Bp = PW(4096);
+  const PW = x => 220 - x / 4096 * 180;               // bredde  -> lodret px (+x = oeverst, se ovenfor)
+  /* Tp/Bp er TOP og BUND i px — efter spejlingen er +x oeverst, saa toppen
+   * er PW(+4096) og bunden PW(-4096) (foer omvendt; en negativ hoejde paa
+   * baandene var symptomet). Alt der bruger Tp/Bp regner med Tp < Bp. */
+  const L = PL(-5120), R = PL(5120), Tp = PW(4096), Bp = PW(-4096);
   const GHW = 893 / 4096 * 180;                       // maalmundens halvbredde i px (lodret)
   const cutL = 1152 / 5500 * 270, cutW = 1152 / 4096 * 180;
+  /* Zonernes rektangler i SVG-koordinater (RADAR-DESIGN.md §1): D1/D2 deler
+   * fladen foran eget maal (|x| ≤ POST i egen tredjedel), D3/D4 er egen
+   * tredjedels sidestriber, D5 midterbaandet, D6 deres tredjedel; O-zonerne er
+   * D spejlet i laengdeaksen. THIRD/POST er kontraktens konstanter. */
+  const THIRD = 5120 / 3, POST = 893;
+  const weekNo = key => String(key || '').replace(/^\d+-W0*/, '');   // '2026-W37' -> '37'
+  function zoneRect(id){
+    const m = /^([DO])([1-6])$/.exec(String(id || '')); if (!m) return null;
+    const own = m[1] === 'D', k = Number(m[2]);
+    const span = (a, b) => ({ lo: Math.min(a, b), hi: Math.max(a, b) });
+    let len, wid;
+    if (k === 5) len = span(PL(-THIRD), PL(THIRD));
+    else if (k === 6) len = own ? span(PL(THIRD), R) : span(L, PL(-THIRD));
+    else len = own ? span(L, PL(-THIRD)) : span(PL(THIRD), R);
+    if (k === 1 || k === 2) wid = span(PW(-POST), PW(POST));
+    else if (k === 3) wid = span(PW(POST), PW(4096));
+    else if (k === 4) wid = span(PW(-POST), PW(-4096));
+    else wid = span(Tp, Bp);
+    return { x: len.lo, y: wid.lo, w: len.hi - len.lo, h: wid.hi - wid.lo };
+  }
+  /* Linjen under radaren (7/9, §6): ugens indkasseringer pr. zone som TAL,
+   * derefter chips. Siderne (D3/D4) slaas sammen til 'fra siden' — venstre/
+   * hoejre naevnes aldrig foer orienteringen er set i spillet. Tegnes ogsaa
+   * uden trin B (kun taellinger); uden radar-blok er linjen tom. */
+  const radarEl = document.getElementById('pitchRadar');
+  function radarLine(rd){
+    if (!radarEl) return;
+    if (!rd || !rd.week){ radarEl.innerHTML = ''; return; }
+    const fmt = n => Number(n || 0).toLocaleString(LANG === 'en' ? 'en-GB' : 'da-DK');
+    const wk = rd.week, z = wk.zones || {};
+    const n = id => (z[id] && z[id].n) || 0;
+    const parts = [[n('D5'), T.pitchZ.D5], [n('D1'), T.pitchZ.D1], [n('D3') + n('D4'), T.pitchZ.side], [n('D2'), T.pitchZ.D2], [n('D6'), T.pitchZ.D6]]
+      .filter(q => q[0] > 0).sort((a, b) => b[0] - a[0]).map(q => '<span class="num">' + fmt(q[0]) + '</span> ' + esc(q[1]));
+    if (wk.ko) parts.push(esc(T.pitchKo.replace('{n}', fmt(wk.ko))));
+    const excl = ((rd.excluded && rd.excluded.private) || 0) + ((rd.excluded && rd.excluded.mutators) || 0);
+    if (excl) parts.push(esc(T.pitchExcl.replace('{n}', fmt(excl))));
+    // 'ikke stedfaestet' = maal uden x (noX) + maal uden bundet beroering (unbound): begge er talt, ingen af dem gaettet
+    const noLoc = (wk.noX || 0) + (rd.unbound || 0);
+    if (noLoc) parts.push(esc(T.pitchNoX.replace('{n}', fmt(noLoc))));
+    const wkNo = weekNo(wk.key);
+    let html = '<span class="num">' + esc(T.pitchConcFrom) + '</span>' + (parts.length ? parts.join(' · ') : esc(T.pitchZoneNone))
+      + (wkNo ? ' <span class="num">(' + esc((LANG === 'en' ? 'week ' : 'uge ') + wkNo) + ')</span>' : '') + '<br>';
+    if (!rd.orientationVerified) html += '<span class="chip warn">' + esc(T.pitchOrient) + '</span>';
+    const mk = rd.marked || {};
+    if (mk.fromWeek) html += '<span class="chip">' + esc(T.pitchFromWeek.replace('{w}', weekNo(mk.fromWeek))) + '</span>';
+    if (mk.def && mk.def.zone === 'D2') html += '<span class="chip air">' + esc(T.pitchAir.replace('{n}', fmt(mk.def.n)).replace('{l}', fmt(mk.def.located))) + '</span>';
+    if (rd.gate && !rd.gate.ok && rd.gate.reason){
+      const why = typeof rd.gate.reason === 'string' ? rd.gate.reason : (rd.gate.reason[LANG] || rd.gate.reason.da || rd.gate.reason.en || '');
+      if (why) html += '<span class="chip">' + esc(why) + '</span>';
+    }
+    radarEl.innerHTML = html;
+  }
   function render(p, sel){
     sel = sel || 0;   // 0 = hele kampen, 1-5 = kampens minutter (serverens layers)
     const inMin = m => !sel || m === sel - 1;
@@ -7030,6 +7176,7 @@ function pitchInit(){
         if (d[2] === 0 && !st.mine) continue;
         if (d[2] === 1) continue;
         if (d[2] === 2 && !st.opps) continue;
+        // samme pixel-afbildning som SVG'en: PW baerer spejlings-rettelsen (7/9) for begge grene
         const bx = cx(PL(d[1])), by = cy(PW(d[0]));
         const g = ctx.createRadialGradient(bx, by, 0, bx, by, R2);
         g.addColorStop(0, 'rgba(0,0,0,.28)'); g.addColorStop(1, 'rgba(0,0,0,0)');
@@ -7086,6 +7233,33 @@ function pitchInit(){
     };
     mark(p.scoredFrom, C_GOOD, st.scored);
     mark(p.concededFrom, C_BAD, st.conceded);
+    /* Zonerne (7/9, RADAR-DESIGN.md §6): de to markerede zoner fra serverens
+     * radar-blok som halvgennemsigtige flader i SVG'ens egne koordinater —
+     * dybdelinjer ved PL(±THIRD), breddelinjer ved PW(±POST). Tegnes KUN naar
+     * motoren har markeret noget (gate bestaaet); ellers ingenting — aldrig
+     * en zone gaettet fra tal. Hoejde (D2/O2) kan ikke tegnes: samme
+     * rektangel som jord-zonen + chip i panelet. */
+    const zoneLabels = [];
+    if (st.zones && p.radar && p.radar.marked){
+      const rd = p.radar, mk = rd.marked;
+      const wkNo = weekNo(rd.week && rd.week.key);
+      const fmtN = n => Number(n || 0).toLocaleString(LANG === 'en' ? 'en-GB' : 'da-DK');
+      s += '<g clip-path="url(#pitchClip)">';
+      for (const fam of ['def', 'off']){
+        const m = mk[fam]; if (!m || !m.zone) continue;
+        const r = zoneRect(m.zone); if (!r) continue;
+        const col = fam === 'def' ? C_BAD : C_GOOD;
+        s += '<rect x="' + r.x.toFixed(1) + '" y="' + r.y.toFixed(1) + '" width="' + r.w.toFixed(1) + '" height="' + r.h.toFixed(1)
+           + '" fill="' + col + '" fill-opacity=".16" stroke="' + col + '" stroke-opacity=".55" stroke-width="1.2" stroke-dasharray="4 3"/>';
+        let txt = fam === 'def'
+          ? T.pitchDefLbl.replace('{n}', fmtN(m.n)).replace('{l}', fmtN(m.located)).replace('{w}', wkNo)
+          : T.pitchOffLbl.replace('{g}', fmtN(m.goals)).replace('{t}', fmtN(m.touches));
+        /* 'fra uge N' staar allerede som chip under radaren (week.key ER den talte uge),
+         * saa etiketten i banen gentager det ikke (C3-review 7/9). */
+        zoneLabels.push({ x: r.x + r.w / 2, y: r.y + r.h / 2, col, txt });
+      }
+      s += '</g>';
+    }
     /* banen ovenpaa lagene, saa linjerne aldrig drukner; maalene baerer
      * EJERENS farve (brugerens rettelse 26/8: teal = DIT maal ligesom dine
      * beroeringer, amber = DERES — farven er identitet, ikke angrebsretning) */
@@ -7113,7 +7287,13 @@ function pitchInit(){
     s += '<text x="' + (PL(-5500) + 12) + '" y="' + capY + '" text-anchor="start" style="' + lbl + '">' + T.pitchYou + '</text>';
     s += '<rect x="' + (PL(5500) - 7) + '" y="' + (capY - 7) + '" width="7" height="7" fill="' + C_OPPS + '"/>';
     s += '<text x="' + (PL(5500) - 12) + '" y="' + capY + '" text-anchor="end" style="' + lbl + '">' + T.pitchThem + '</text>';
+    /* zone-etiketterne oven paa stregerne, saa tallet aldrig drukner i vasken */
+    const zl = 'font-family:Archivo,Segoe UI,system-ui,sans-serif;font-size:9.5px;font-stretch:80%;font-weight:800;'
+      + 'letter-spacing:.04em;paint-order:stroke;stroke:rgba(5,8,14,.9);stroke-width:3px;stroke-linejoin:round;';
+    for (const z of zoneLabels)
+      s += '<text x="' + z.x.toFixed(1) + '" y="' + (z.y + 3.5).toFixed(1) + '" text-anchor="middle" style="' + zl + 'fill:' + z.col + ';">' + esc(z.txt) + '</text>';
     svg.innerHTML = s;
+    radarLine(p.radar);
     const statsEl = document.getElementById('pitchStats');
     if (!p.touches){ statsEl.textContent = T.pitchEmpty; return; }
     const fmt = n => n.toLocaleString(LANG === 'en' ? 'en-GB' : 'da-DK');

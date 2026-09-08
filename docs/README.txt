@@ -173,8 +173,24 @@ kilde i `overlay-host/`): kun kortene tegnes, og hver anden pixel er spillet
 bagved — intet bånd, ingen titelbjælke, ingen ramme. Det viser den samme side
 som altid (`?overlay&glass`) i en WebView2, så designet vedligeholdes ét sted.
 
-- Kræver at Rocket League kører i **Borderless** eller **Windowed**
-  (fullscreen-exclusive tegner over alt andet).
+- Kræver at Rocket League kører i **Borderless Window** eller **Windowed**.
+  I exclusive **Fullscreen** ejer spillet skærmen alene: ethvert vindue, der
+  viser sig oven på det, sparker spillet ud på skrivebordet (målt 7/9-2026:
+  ét `Show()` af et Topmost-vindue minimerede spillet på 1,5 s — det var
+  testerens "alt-tab ved kickoff"). Værten genkender tilstanden
+  (`SHQueryUserNotificationState` = D3D fullscreen), holder kortene parkeret
+  uden for skærmen og skriver `overlay-status.json` med `fullscreen:true`, så
+  main-siden og boardet viser chippen »Overlayet kræver Borderless Window
+  (Settings → Video → Window Mode)«. Skift til Borderless, og kortene kommer
+  af sig selv.
+- Tager aldrig fokus (v1.1.0, 7/9): vinduet vises én gang, parkeret uden for
+  skærmen, og flyttes derefter kun ind/ud med `SetWindowPos(SWP_NOACTIVATE |
+  SWP_NOZORDER)` — aldrig `Show()`/`Hide()` igen. Klik på kortene besvares
+  `MA_NOACTIVATE`; skulle browseren alligevel aktivere vinduet, får spillet
+  forgrunden tilbage med det samme. Ingen dialoger, ingen nye vinduer, ingen
+  ekstern drop. Versionen står i bakke-ikonets tooltip. Selvtest:
+  `RLOverlay.exe --selftest` (logger forgrund, fullscreen-tilstand og
+  ruder hvert sekund i `overlay-selftest.log`).
 - ToS-rent: et separat vindue oven på spillet — ingen injection, og der
   ændres intet i spillets filer.
 - **Flyt det:** hold `Alt` nede og træk, eller træk med midterste museknap.
