@@ -1205,6 +1205,10 @@ function sessionLatest(){
 function sessionCurrent(){
   try{ return session.current(); }catch{ return null; }
 }
+/* Banekortets session-vindue (8/9): aftenens kampfiler, se session.files. */
+function sessionFiles(){
+  try{ return session.files(); }catch{ return null; }
+}
 /* The match BEFORE the last one — the Coach panel speaks about "last + previous".
  * Returned as stored: its texts keep the language and unit they were written
  * in, the same permanence rule every saved debrief follows. */
@@ -1297,7 +1301,7 @@ function onRank(pid, data){
 
 function formCurrent(){ try{ return form.current(); }catch{ return null; } }
 module.exports = { init, onDigest, lastDebrief, prevDebrief, onGameDisconnect, onMatchStart, tick,
-                   sessionLatest, sessionCurrent, focus, focusLive, setTracked, getTracked, formCurrent,
+                   sessionLatest, sessionCurrent, sessionFiles, focus, focusLive, setTracked, getTracked, formCurrent,
                    weeklyCurrent, weeklyLatest, onRank,
                    setUnit, getUnit, setMatchLabel, LABELS,
                    tapeWithCitations,            // pure; exported for director/test

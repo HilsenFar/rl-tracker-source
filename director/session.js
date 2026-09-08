@@ -368,6 +368,24 @@ function onGameDisconnect(){
 
 function latest(){ return (state && state.lastReport) || null; }
 
+/* Banekortets session-vindue (8/9, /api/pitch?window=session): den AABNE
+ * sessions kampfiler naar der spilles, ellers seneste rapports. Private
+ * lobbyer og mutator-kampe er med (pitch.js holder dem selv ude af
+ * radar-felterne og taeller dem). Null naar der hverken er en aaben session
+ * eller en rapport — siden siger det, gaetter aldrig et vindue. */
+function files(){
+  if (!state) return null;
+  const open = state.open;
+  if (open && Array.isArray(open.matches) && open.matches.length)
+    return { source: 'open', startedAt: open.startedAt || null, name: null,
+             files: open.matches.map(m => m && m.file).filter(Boolean) };
+  const r = state.lastReport;
+  if (r && Array.isArray(r.matches))
+    return { source: 'report', startedAt: r.startedAt || r.at || null, name: r.name || null,
+             files: r.matches.map(m => m && m.file).filter(Boolean) };
+  return null;
+}
+
 /* The session IN PROGRESS — a light preview for the main page's Session panel.
  * Same contract as the report: every number is either measured tonight or the
  * player's own pre-session normal (the {v,b,bn} stored per match). Never
@@ -686,10 +704,10 @@ function concededLine(rd, en){
   add(((zs.D3 && zs.D3.n) | 0) + ((zs.D4 && zs.D4.n) | 0), lbl('D3'));
   add((zs.D5 && zs.D5.n) | 0, lbl('D5'));
   add((zs.D6 && zs.D6.n) | 0, lbl('D6'));
-  const ex = rd.excluded ? ((rd.excluded.private | 0) + (rd.excluded.mutators | 0)) : 0;
+  const ex = rd.excluded ? ((rd.excluded.private | 0) + (rd.excluded.mutators | 0) + (rd.excluded.arena | 0)) : 0;
   const tail = [];
   if (c.ko > 0) tail.push(en ? c.ko + ' of them kickoff goal' + (c.ko === 1 ? '' : 's') : 'heraf ' + c.ko + ' kickoff-mål');
-  if (ex > 0) tail.push(en ? ex + ' match' + (ex === 1 ? '' : 'es') + ' omitted (private/mutator)' : ex + ' udeladt (privat/mutator)');
+  if (ex > 0) tail.push(en ? ex + ' match' + (ex === 1 ? '' : 'es') + ' omitted (private/mutator/other arena)' : ex + ' udeladt (privat/mutator/anden bane)');
   if (c.noX > 0) tail.push(en ? c.noX + ' not located' : c.noX + ' ikke stedfæstet');
   if ((rd.unbound | 0) > 0) tail.push(en ? rd.unbound + ' unbound' : rd.unbound + ' ubundet');
   const head = en ? 'Conceded from: ' : 'Indkasseret fra: ';
@@ -1327,7 +1345,7 @@ function renderHTML(r){
     '</div></body></html>\n';
 }
 
-module.exports = { init, onMatch, onMatchStart, tick, onGameDisconnect, latest, current, rehome, renderHTML,
+module.exports = { init, onMatch, onMatchStart, tick, onGameDisconnect, latest, current, files, rehome, renderHTML,
   _pauseEval: pauseEval, _pauseStep: pauseStep,   // eksponeret til test-harness
   // radar-replay (scripts/radar-replay.mjs) + session-radar.test.js: raekker, rapport og historik uden disk-flowet
   _rowOf: rowOf, _buildReport: buildReport, _recordPacks: recordPacks, _concededLine: concededLine };

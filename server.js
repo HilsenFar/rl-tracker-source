@@ -870,7 +870,7 @@ try{
  * besked på boardet, aldrig selv-opdatering. Anonymt kald; slås fra med
  * "updateCheck": false i director-ai.json eller UPDATE_CHECK=0.
  * Logik: director/update-check.js. */
-const APP_VERSION = '2026.09.07.1';
+const APP_VERSION = '2026.09.08';
 let updateCheck = null;
 try{
   let updOff = process.env.UPDATE_CHECK === '0';
@@ -1665,12 +1665,13 @@ function packDeck(){
 /* Selve aggregatet bor i director/pitch.js (3/9): per-fil-cache, kun nye
  * kampe laeses, og director/test/pitch.test.js beviser at det giver samme
  * svar som den gamle fulde genlaesning. Her bestemmes kun HVEM ejeren er. */
+function pitchOwner(){
+  const tr = director && director.getTracked ? (director.getTracked() || {}) : {};
+  return { pid: tr.ownerPid || tr.trackedPid || tr.pid || '', name: tr.ownerName || tr.trackedName || tr.name || '' };
+}
 function pitchAggregate(){
   if (!pitch) throw new Error('banekortet er ikke indlaest (director/pitch.js)');
-  const tr = director && director.getTracked ? (director.getTracked() || {}) : {};
-  return pitch.aggregate(path.join(ROOT, 'matches'), {
-    pid: tr.ownerPid || tr.trackedPid || tr.pid || '',
-    name: tr.ownerName || tr.trackedName || tr.name || '' });
+  return pitch.aggregate(path.join(ROOT, 'matches'), pitchOwner());
 }
 
 /* ---------- Baneradarens zoner paa /api/pitch (7/9, RADAR-DESIGN.md §3/§6) ----
@@ -1688,15 +1689,22 @@ function pitchAggregate(){
  *               fromWeek: '2026-W36' | null },   // sat naar ugen var for tynd og forrige uge blev talt
  *     gate: { ok, reason } | null,          // trin B's dom; null = trin B mangler (kun taellinger)
  *     longRun: { located, noX, ko, zones:{…}, excluded, unbound },   // hele arkivet
- *     excluded: { private, mutators }, unbound,   // ugens
- *     orientationVerified: false            // ±x er IKKE set i spillet endnu (§1)
+ *     excluded: { private, mutators, arena }, unbound,   // vinduets (arena = anden banestoerrelse, 8/9)
+ *     orientationVerified: false,           // ±x er IKKE set i spillet endnu (§1)
+ *     window: 'session' | 'week' | 'all'    // hvilket vindue zonerne er talt over (8/9)
  *   }
+ *
+ * Vinduet (8/9): 'week' som foer (med fald tilbage til forrige uge naar ugen
+ * er tynd), 'session' doemmes med radar.js' SESSION_GATE (teksterne siger
+ * 'i aften') og falder aldrig tilbage, 'all' er hele arkivet med uge-gaten
+ * ('over alle kampe').
  *
  * Uden trin B (profile/offenseProfile mangler eller kaster 'not implemented')
  * bliver zone-TAELLINGERNE stadig leveret, marked er tomt og gate null — saa
  * overlayet kan tegne tallene i aften og zonerne naar trin B lander. */
 const RADAR_WEEK_MIN_LOCATED = 10;   // under dette (fx mandag morgen) tælles forrige lukkede uge (§3 'fra uge N')
 const RADAR_WEEK_GATE = { min: 40, zoneMin: 10, zoneShare: 0.25 };   // kontraktens uge-gate, bruges hvis trin B ikke eksporterer sin egen
+const RADAR_SESSION_GATE = { min: 8, zoneMin: 5, zoneShare: 0.30, window: 'session' };   // kontraktens session-gate (§3), samme fallback-regel
 
 /* Zone-taellinger for en liste skudsteder [x|null, y, minut, z|null, day, ko]. */
 function radarZoneCounts(entries, R, family){
@@ -1736,18 +1744,25 @@ function radarFilesOfWeek(files, wk, playDay){
  * {key,from,to} + weekFold = pitch.foldEntries for ugens filer; prevWeek/
  * prevFold = forrige lukkede uge (kun brugt naar ugen er for tynd; maa vaere
  * null). R = director/radar.js (maa vaere null). Kaster aldrig. */
-function radarBlock(agg, week, weekFold, prevWeek, prevFold, R){
-  const empty = { matches: 0, scoredFrom: [], concededFrom: [], mineZones: {}, excluded: { private: 0, mutators: 0 }, unbound: 0 };
+function radarBlock(agg, week, weekFold, prevWeek, prevFold, R, opts){
+  const win = opts && (opts.window === 'session' || opts.window === 'all') ? opts.window : 'week';
+  const empty = { matches: 0, scoredFrom: [], concededFrom: [], mineZones: {}, excluded: { private: 0, mutators: 0, arena: 0 }, unbound: 0 };
   let wk = week, fold = weekFold || empty, fromWeek = null;
   let counts = radarZoneCounts(fold.concededFrom, R, 'def');
-  if (counts.located < RADAR_WEEK_MIN_LOCATED && prevWeek && prevFold){
+  if (win === 'week' && counts.located < RADAR_WEEK_MIN_LOCATED && prevWeek && prevFold){
     const pc = radarZoneCounts(prevFold.concededFrom, R, 'def');
     if (pc.located > counts.located){ wk = prevWeek; fold = prevFold; counts = pc; fromWeek = prevWeek.key; }
   }
   // trin B: profil + gate. Mangler den, eller kaster den, staar taellingerne alene.
+  // Gaten foelger vinduet (8/9): session = SESSION_GATE ('i aften'), uge = WEEK_GATE
+  // med ugenummer ('i uge N'), alt = WEEK_GATE over hele arkivet ('over alle kampe').
+  const weekNum = wk && Number.isFinite(wk.week) ? wk.week : Number(String(wk && wk.key || '').replace(/^\d+-W0*/, '')) || null;
+  const gateOpts = win === 'session' ? ((R && R.SESSION_GATE) || RADAR_SESSION_GATE)
+    : Object.assign({}, (R && R.WEEK_GATE) || RADAR_WEEK_GATE, { window: win }, win === 'week' && weekNum ? { week: weekNum } : {});
+  const offOpts = { window: win, week: gateOpts.week };
   let prof = null, off = null, gate = null;
-  try{ if (R && typeof R.profile === 'function') prof = R.profile(fold.concededFrom, R.WEEK_GATE || RADAR_WEEK_GATE) || null; }catch{ prof = null; }
-  try{ if (R && typeof R.offenseProfile === 'function') off = R.offenseProfile(fold.scoredFrom, fold.mineZones) || null; }catch{ off = null; }
+  try{ if (R && typeof R.profile === 'function') prof = R.profile(fold.concededFrom, gateOpts) || null; }catch{ prof = null; }
+  try{ if (R && typeof R.offenseProfile === 'function') off = R.offenseProfile(fold.scoredFrom, fold.mineZones, offOpts) || null; }catch{ off = null; }
   if (prof && prof.gate && typeof prof.gate.ok === 'boolean') gate = { ok: prof.gate.ok, reason: prof.gate.reason || null };
   // trin B's egne tal vinder for zonerne naar de findes (samme geometri; profilen kan bære noZ m.m.)
   const zones = prof && prof.zones ? prof.zones : counts.zones;
@@ -1768,6 +1783,7 @@ function radarBlock(agg, week, weekFold, prevWeek, prevFold, R){
       offMarked = { zone: w, goals: off.zones[w].goals, touches: off.zones[w].touches, per100: off.zones[w].per100 };
   }
   const lr = radarZoneCounts(agg && agg.concededFrom, R, 'def');
+  const exOf = e => ({ private: (e && e.private) | 0, mutators: (e && e.mutators) | 0, arena: (e && e.arena) | 0 });
   return {
     week: { key: wk ? wk.key : null, from: wk ? wk.from : null, to: wk ? wk.to : null,
             located, noX: prof && Number.isFinite(prof.noX) ? prof.noX : counts.noX,
@@ -1776,38 +1792,85 @@ function radarBlock(agg, week, weekFold, prevWeek, prevFold, R){
     marked: { def, off: offMarked, fromWeek },
     gate,
     longRun: { located: lr.located, noX: lr.noX, ko: lr.ko, zones: lr.zones,
-               excluded: (agg && agg.excluded) || { private: 0, mutators: 0 }, unbound: (agg && agg.unbound) || 0 },
-    excluded: fold.excluded || { private: 0, mutators: 0 }, unbound: fold.unbound || 0,
-    orientationVerified: !!(R && R.ORIENTATION_VERIFIED)
+               excluded: exOf(agg && agg.excluded), unbound: (agg && agg.unbound) || 0 },
+    excluded: exOf(fold.excluded), unbound: fold.unbound || 0,
+    orientationVerified: !!(R && R.ORIENTATION_VERIFIED),
+    window: win
   };
 }
 
-/* /api/pitch-svaret: arkivets aggregat + radar-blokken. Ugefoldet er lille
- * (contributionsFor slaar op i den per-fil-cache aggregate() lige har fyldt,
- * saa ingen fil laeses igen) og maa aldrig vaelte banekortet: fejler noget i
- * radar-delen, sendes aggregatet uden `radar`. */
-function pitchWithRadar(){
-  const agg = pitchAggregate();
-  let block = null;
+/* Banekortets vindue (8/9, tester-feedback 7/9: "opened every day for 3 days
+ * and it just kept getting added to"): /api/pitch?window=session|week|all.
+ * Uge er standard (ISO-spilleugen med 06:00-reglen — de samme filer som
+ * radarens zoner), session = aftenens kampe (director.sessionFiles: den aabne
+ * session, ellers seneste rapport), alt = hele arkivet. Alle tre bygger paa
+ * pitch.contributionsFor's per-fil-cache, som aggregate() lige har fyldt, saa
+ * ingen fil laeses igen; foldningen af et vindue er millisekunder (maalt 8/9:
+ * uge ~1 ms, alt ~5 ms for 692 filer). Rene hjaelpere: pitchWindowOf,
+ * pitchWindowFiles (director/test/pitch-radar.test.js). */
+const PITCH_WINDOWS = ['session', 'week', 'all'];
+function pitchWindowOf(v){ return PITCH_WINDOWS.includes(v) ? v : 'week'; }
+function pitchWindowFiles(win, files, wk, playDay, sessionInfo){
+  if (win === 'session'){
+    const set = new Set(sessionInfo && Array.isArray(sessionInfo.files) ? sessionInfo.files : []);
+    return (files || []).filter(f => set.has(f));
+  }
+  if (win === 'week' && wk && typeof playDay === 'function') return radarFilesOfWeek(files, wk, playDay);
+  return (files || []).slice();
+}
+
+/* /api/pitch-svaret: vinduets tegning + radar-blokken + `window` (hvad der er
+ * talt: kind, key/from/to, files, session). Fejler noget i vindue- eller
+ * radar-delen, sendes hele arkivets aggregat uden `radar` (som foer) og med
+ * window.kind 'all' — siden maerker det og gaetter aldrig et vindue. */
+function pitchWithRadar(win){
+  win = pitchWindowOf(win);
+  const agg = pitchAggregate();           // hele arkivet: langtid til radaren, fallback for tegningen
+  let draw = agg, block = null;
+  const info = { kind: 'all', key: null, from: null, to: null, files: agg.matches, session: null };
   try{
-    if (weeklyFns && pitch.contributionsFor && pitch.foldEntries){
-      const tr = director && director.getTracked ? (director.getTracked() || {}) : {};
-      const owner = { pid: tr.ownerPid || tr.trackedPid || tr.pid || '', name: tr.ownerName || tr.trackedName || tr.name || '' };
-      const dir = path.join(ROOT, 'matches');
-      const files = pitch.listFiles(dir);
+    if (!pitch.contributionsFor || !pitch.foldEntries || !pitch.fold) throw new Error('pitch.js uden contributionsFor/foldEntries/fold');
+    const owner = pitchOwner();
+    const dir = path.join(ROOT, 'matches');
+    const files = pitch.listFiles(dir);
+    if (win === 'session'){
+      const sf = director && director.sessionFiles ? director.sessionFiles() : null;
+      const sel = pitchWindowFiles('session', files, null, null, sf);
+      const contribs = pitch.contributionsFor(dir, sel.slice().reverse(), owner);   // nyeste foerst: dots-loftet beholder de nyeste
+      draw = pitch.fold(contribs);
+      block = radarBlock(agg, null, pitch.foldEntries(contribs), null, null, radar, { window: 'session' });
+      info.kind = 'session'; info.files = sel.length;
+      info.session = sf ? { source: sf.source, startedAt: sf.startedAt || null, name: sf.name || null, files: sf.files.length } : null;
+      if (sf && sf.startedAt && weeklyFns) info.from = info.to = weeklyFns.playDay(sf.startedAt);
+    } else if (win === 'week' && weeklyFns){
       const wk = weeklyFns.currentWeek();
-      const fold = pitch.foldEntries(pitch.contributionsFor(dir, radarFilesOfWeek(files, wk, weeklyFns.playDay), owner));
-      let prevWk = null, prevFold = null;
+      const wkFiles = radarFilesOfWeek(files, wk, weeklyFns.playDay);
+      const fold = pitch.foldEntries(pitch.contributionsFor(dir, wkFiles, owner));
+      let prevWk = null, prevFold = null, prevFiles = null;
       if (radarZoneCounts(fold.concededFrom, radar, 'def').located < RADAR_WEEK_MIN_LOCATED){
         const [y, m, d] = wk.from.split('-').map(Number);
         const pd = new Date(y, m - 1, d - 1);
         prevWk = weeklyFns.isoWeekOf(pd.getFullYear() + '-' + String(pd.getMonth() + 1).padStart(2, '0') + '-' + String(pd.getDate()).padStart(2, '0'));
-        prevFold = pitch.foldEntries(pitch.contributionsFor(dir, radarFilesOfWeek(files, prevWk, weeklyFns.playDay), owner));
+        prevFiles = radarFilesOfWeek(files, prevWk, weeklyFns.playDay);
+        prevFold = pitch.foldEntries(pitch.contributionsFor(dir, prevFiles, owner));
       }
-      block = radarBlock(agg, wk, fold, prevWk, prevFold, radar);
-    } else block = radarBlock(agg, null, null, null, null, radar);
-  }catch(e){ console.log('[radar] blokken fejlede (banekortet sendes uden):', String(e.message || e)); block = null; }
-  return block ? Object.assign({}, agg, { radar: block }) : agg;
+      block = radarBlock(agg, wk, fold, prevWk, prevFold, radar, { window: 'week' });
+      // tegningen foelger den uge blokken talte: faldt zonerne tilbage paa forrige uge ('fra uge N'), goer prikkerne det ogsaa
+      const drawFiles = block.marked.fromWeek && prevFiles ? prevFiles : wkFiles;
+      draw = pitch.fold(pitch.contributionsFor(dir, drawFiles.slice().reverse(), owner));   // nyeste foerst: dots-loftet beholder de nyeste
+      info.kind = 'week'; info.key = block.week.key; info.from = block.week.from; info.to = block.week.to; info.files = drawFiles.length;
+    } else {
+      /* alt: nyeste kampe FOERST i foldningen (som session og uge), saa
+       * dots-loftet (PITCH_DOTS_MAX) beholder de nyeste prikker — aggregatets
+       * legacy-orden beholder de aeldste, og efter ~110 kampe med x stod 'alt'
+       * stille paa dem. */
+      const contribs = pitch.contributionsFor(dir, files.slice().reverse(), owner);
+      draw = pitch.fold(contribs);
+      block = radarBlock(agg, null, pitch.foldEntries(contribs), null, null, radar, { window: 'all' });
+      info.kind = 'all'; info.files = files.length;
+    }
+  }catch(e){ console.log('[radar] vinduet fejlede (hele arkivet sendes uden radar):', String(e.message || e)); draw = agg; block = null; info.kind = 'all'; info.files = agg.matches; }
+  return Object.assign({}, draw, { window: info, radar: block });
 }
 function isPublic(rel){
   // A NUL byte reaches here via %00 and makes fs.* throw SYNCHRONOUSLY
@@ -1917,7 +1980,10 @@ const server = http.createServer(async (req, res) => {
      * gamle kampe kender kun laengdeaksen (y) og tegnes som scanlinjer;
      * beroeringer med x (gemt fra 26/8) returneres som praecise prikker.
      * Alt normaliseres saa ejerens eget maal ligger i minus-enden. */
-    if (url.pathname === '/api/pitch') return sendJSON(res, 200, timed('pitchAggregate', pitchWithRadar));
+    if (url.pathname === '/api/pitch'){
+      const win = pitchWindowOf(url.searchParams.get('window') || 'week');
+      return sendJSON(res, 200, timed('pitch:' + win, () => pitchWithRadar(win)));
+    }
     /* Tilfaeldig traeningsbane (26/8): uniform traek fra HELE kartoteket
      * (kerne + variety + prejump-arkivet). Kun navn/kode/ophav — ingen
      * anbefalings-paastand: knappen ER en terning og siger det selv. */

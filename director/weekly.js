@@ -1501,12 +1501,12 @@ function renderHTML(r){
         + rate(mOff.frontPer100) + (EN ? ' per 100 in front of their goal → ' : ' pr. 100 foran deres mål → ') + esc(pOff.pack.name)
         + ' <span class="code">' + esc(pOff.pack.code) + '</span> ' + srcChip(pOff) + '</p>'
       : '<p><strong>' + (EN ? 'Offence: no pack' : 'Angreb: ingen bane') + '</strong> — ' + esc(rd.why && rd.why.off ? (EN ? rd.why.off.en : rd.why.off.da) : (EN ? rd.offense.gate.reason.en : rd.offense.gate.reason.da)) + '</p>';
-    const c = rd.conceded, ex = rd.excluded || { private: 0, mutators: 0 };
+    const c = rd.conceded, ex = rd.excluded || { private: 0, mutators: 0, arena: 0 };
     const chips2 = [
       c.located + (EN ? ' of ' : ' af ') + c.n + (EN ? ' conceded located' : ' indkasserede stedfæstet'),
       c.ko ? c.ko + (EN ? ' kickoff goals counted separately' : ' kickoff-mål talt for sig') : null,
       c.noX ? c.noX + (EN ? ' without x (not located)' : ' uden x (ikke stedfæstet)') : null,
-      (ex.private || ex.mutators) ? (EN ? 'excluded: ' : 'udeladt: ') + [ex.private ? ex.private + (EN ? ' private' : ' private') : null, ex.mutators ? ex.mutators + ' mutator' : null].filter(Boolean).join(' · ') : null,
+      (ex.private || ex.mutators || ex.arena) ? (EN ? 'excluded: ' : 'udeladt: ') + [ex.private ? ex.private + (EN ? ' private' : ' private') : null, ex.mutators ? ex.mutators + ' mutator' : null, ex.arena ? ex.arena + (EN ? ' other arena' : ' anden bane') : null].filter(Boolean).join(' · ') : null,
       rd.unbound ? rd.unbound + (EN ? ' unbound goals' : ' ubundne mål') : null,
       rd.orientationVerified ? null : (EN ? 'orientation not verified' : 'orientering ikke verificeret')
     ].filter(Boolean).map(x => '<span class="chip">' + esc(x) + '</span>').join('');

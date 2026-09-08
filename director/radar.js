@@ -230,11 +230,14 @@ const pct = (n, d) => d > 0 ? Math.round(100 * n / d) : 0;
 const num = v => typeof v === 'number' && Number.isFinite(v);
 
 /* Vinduets ord i teksterne: session = i aften, uge = i uge N (eller "i ugen"
- * naar nummeret ikke er givet). */
+ * naar nummeret ikke er givet), all = over alle kampe (banekortets 'Alt'-
+ * vindue, 8/9). */
 function windowWord(win, week, en){
   if (win === 'week') return num(week) ? (en ? 'in week ' + week : 'i uge ' + week) : (en ? 'this week' : 'i ugen');
+  if (win === 'all') return en ? 'over all matches' : 'over alle kampe';
   return en ? 'tonight' : 'i aften';
 }
+const windowOf = o => o && (o.window === 'week' || o.window === 'all') ? o.window : 'session';
 
 /* Profil over skudsteder ([x|null, y, minut, z|null, day, ko] fra pitch.js).
  * Kickoff-maal (ko) holdes UDE af zonerne og af `located` — de rapporteres for
@@ -267,7 +270,7 @@ function profile(entries, opts){
   // dominerende: stoerste n blandt de fem foerste (6'eren driver aldrig en bane); lighed → foerste i orden
   let dominant = null;
   for (const z of ids.slice(0, 5)) if (zones[z].n > 0 && (!dominant || zones[z].n > zones[dominant].n)) dominant = z;
-  const win = o.window === 'week' ? 'week' : 'session';
+  const win = windowOf(o);
   const gate = gateOf({ n, located, ko, zones, dominant, family }, o, win);
   return { n, located, noX, noZ, ko, zones, dominant, family, window: win, week: num(o.week) ? o.week : null, gate };
 }
@@ -333,7 +336,7 @@ function offenseProfile(scoredFrom, mineZones, opts){
   const weak = front.per100 === null || front.goals < 1 ? []
     : cands.filter(z => zones[z].per100 !== null && zones[z].per100 <= front.per100 / 2)
            .sort((a, b) => (zones[a].per100 - zones[b].per100) || (OFF_IDS.indexOf(a) - OFF_IDS.indexOf(b)));
-  const win = o.window === 'week' ? 'week' : 'session';
+  const win = windowOf(o);
   const week = num(o.week) ? o.week : null;
   const w = { da: windowWord(win, week, false), en: windowWord(win, week, true) };
   let gate;

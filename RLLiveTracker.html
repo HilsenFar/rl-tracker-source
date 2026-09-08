@@ -888,6 +888,12 @@ body.board #focusbanner, body.overlay #focusbanner, body.rankview #focusbanner{d
   align-items:center; gap:10px}
 #sapibanner.on{display:flex}
 body.overlay #sapibanner{font-size:10.5px; padding:6px 9px; letter-spacing:.03em}
+/* Boardet (8/9): samme greb som overlay-chippen nedenfor — en plade i flowet
+ * uden for #board blev klemt til 28×36 px (maalt 7/9), dvs. usynlig netop dér,
+ * hvor et doedt feed er mest usynligt. Fast plads oeverst i midten; er chippen
+ * ogsaa paa, rykker den ned under varslet (se body.board #ovfsbanner). */
+body.board #sapibanner{position:fixed; top:12px; left:50%; transform:translateX(-50%);
+  z-index:50; margin:0; width:max-content; max-width:90vw}
 
 /* ── UPDATE-BANNER ─ versions-tjek (14/8): stille kort, aldrig et varsel —
  * en ny version er en nyhed, ikke et problem. Klik åbner download-siden;
@@ -919,6 +925,12 @@ body.overlay #ovfsbanner{display:none}
  * oeverst i midten, over boardet, uden at flytte paa noget. */
 body.board #ovfsbanner{position:fixed; top:12px; left:50%; transform:translateX(-50%);
   z-index:50; margin:0; width:max-content; max-width:90vw}
+/* Begge paa: varslet (kraever en handling) staar oeverst, chippen under det.
+ * Klassen saettes af updateSapiBanner() paa chippen SELV — en soeskende-vaelger
+ * (#sapibanner.on ~ #ovfsbanner) blev ikke genberegnet, naar kun banneret
+ * skiftede klasse (maalt 8/9 i en fane uden frames); det element der
+ * skifter klasse, faar altid sin egen stil regnet om. */
+body.board #ovfsbanner.stacked{top:60px}
 #updbanner .upd-x:focus-visible{opacity:1; box-shadow:var(--gt-focus-ring)}
 #updbanner a{color:inherit; text-decoration:none}
 body.overlay #updbanner{display:none}
@@ -2073,6 +2085,16 @@ body.overlay .card{ background-image:none; box-shadow:var(--gt-e-1); }
 .pitchtoggles button.off{color:var(--muted); background:var(--gt-sub-1)}
 .pitchtoggles button.off .sw{opacity:.3; background-image:linear-gradient(to top right, transparent 44%, var(--muted) 46%, var(--muted) 54%, transparent 56%)}
 .pitchtoggles button:focus-visible{outline:2px solid var(--st-line); outline-offset:2px}
+/* Vindue-vaelgeren (8/9): session · uge · alt som EEN segmenteret kontakt
+ * foran lag-kontakterne — praecis eet valg er trykket (aria-pressed), aldrig
+ * en til/fra-knap. Samme plade og typografi som lagene, uden farveproeve. */
+.pitchtoggles .pitchwin{display:inline-flex; border:1px solid var(--gt-edge-bezel); border-radius:6px; overflow:hidden; margin-right:6px}
+.pitchtoggles .pitchwin button{border:0; border-radius:0; border-right:1px solid var(--gt-edge-bezel); background:var(--gt-sub-1); color:var(--muted); box-shadow:none; padding:5px 11px}
+.pitchtoggles .pitchwin button:last-child{border-right:0}
+.pitchtoggles .pitchwin button[aria-pressed=true]{background:var(--gt-pl-2); color:var(--ink); box-shadow:inset 0 1px 0 rgba(255,255,255,.06)}
+.pitchtoggles .pitchwin button:focus-visible{outline-offset:-2px}
+/* Aerlighedslinjen under taellelinjen (8/9): i maalfeltet, uden for banen, over loftet */
+.pitchstats .pitchhonest{color:var(--muted); font-size:12px}
 .pitchstats{font-size:13.5px; color:var(--ink)}
 .pitchstats .num{font-family:var(--gt-font-ui); font-variant-numeric:tabular-nums}
 /* Zonelinjen under radaren (7/9): tal foerst, chips efter. Chippen laaner
@@ -3435,7 +3457,7 @@ const T = LANG === 'en' ? {
   pitchFromWeek: 'from week {w}', pitchAir: 'ball was in the air: {n} of {l}', pitchOrient: 'orientation not verified',
   pitchConcFrom: 'Conceded from: ', pitchZoneNone: 'no located conceded goals this week',
   pitchZ: { D1: 'in front of the goal (ground)', D2: 'in front of the goal (air)', side: 'from the side', D5: 'middle zone', D6: 'their third' },
-  pitchKo: '{n} kickoff goals', pitchExcl: '{n} omitted (private/mutator)', pitchNoX: '{n} not located',
+  pitchKo: '{n} kickoff goals', pitchExcl: '{n} omitted (private/mutator/other arena)', pitchNoX: '{n} not located',
   radarPrefix: 'Radar',
   winGroup: 'Move this card', winUp: 'Move up', winDown: 'Move down', winDrag: 'Drag to move',
   pvPitch: 'Pitch radar', pvSetup: 'Setup', finalTag: 'FINAL',
@@ -3451,6 +3473,16 @@ const T = LANG === 'en' ? {
              radar:'Inverts the order — the pitch radar becomes the hero.' },
   pitchLive: 'The pitch radar is drawn when the match ends — it is not live data.',
   pitchDots: '{d} with exact position',
+  /* vinduet (8/9): session · week · all; the count line says what lies in the goal mouth, off the pitch and over the cap */
+  pitchWinGroup: 'Window', pitchWin: { session: 'Session', week: 'Week', all: 'All' },
+  pitchWinLbl: { session: 'latest session', week: 'week {w}', all: 'all matches' },
+  pitchWinNone: 'No session to show yet — play a match, or pick Week or All.',
+  pitchWinOld: 'the server is older than this page: showing all matches (restart the tracker)',
+  pitchInGoal: '{n} in the goal mouth (drawn inside the goal)',
+  pitchClipped: '{n} off the pitch (another arena size, not drawn)',
+  pitchCap: '{n} oldest dots over the cap of {max} (not drawn)',
+  pitchDefLblWin: { session: '{n} of {l} tonight', week: '{n} of {l} in week {w}', all: '{n} of {l} in all' },
+  pitchZoneNoneWin: { session: 'no located conceded goals tonight', week: 'no located conceded goals this week', all: 'no located conceded goals yet' },
   diceTitle: 'Random training pack', diceBtn: 'Draw a pack',
   diceMeta: 'drawn from {n} packs', diceErr: 'Could not draw — is the server awake?',
   /* Simple action language on the focus surfaces (K4W 13/8: "sproget skal være
@@ -3537,7 +3569,7 @@ const T = LANG === 'en' ? {
   pitchFromWeek: 'fra uge {w}', pitchAir: 'bolden var i luften: {n} af {l}', pitchOrient: 'orientering ikke verificeret',
   pitchConcFrom: 'Indkasseret fra: ', pitchZoneNone: 'ingen stedfæstede indkasseringer i ugen',
   pitchZ: { D1: 'foran målet (jord)', D2: 'foran målet (luft)', side: 'fra siden', D5: 'midterzone', D6: 'deres tredjedel' },
-  pitchKo: '{n} kickoff-mål', pitchExcl: '{n} udeladt (privat/mutator)', pitchNoX: '{n} ikke stedfæstet',
+  pitchKo: '{n} kickoff-mål', pitchExcl: '{n} udeladt (privat/mutator/anden bane)', pitchNoX: '{n} ikke stedfæstet',
   radarPrefix: 'Radar',
   winGroup: 'Flyt dette kort', winUp: 'Flyt op', winDown: 'Flyt ned', winDrag: 'Træk for at flytte',
   pvPitch: 'Baneradar', pvSetup: 'Opsætning', finalTag: 'SLUT',
@@ -3553,6 +3585,16 @@ const T = LANG === 'en' ? {
              radar:'Vender rækkefølgen om — baneradaren bliver helten.' },
   pitchLive: 'Baneradaren tegnes når kampen slutter — den er ikke live-data.',
   pitchDots: '{d} med præcis position',
+  /* vinduet (8/9): session · uge · alt; taellelinjen siger hvad der ligger i maalfeltet, uden for banen og over loftet */
+  pitchWinGroup: 'Vindue', pitchWin: { session: 'Session', week: 'Uge', all: 'Alt' },
+  pitchWinLbl: { session: 'seneste session', week: 'uge {w}', all: 'alle kampe' },
+  pitchWinNone: 'Ingen session at vise endnu — spil en kamp, eller vælg Uge eller Alt.',
+  pitchWinOld: 'serveren er ældre end siden: viser alle kampe (genstart trackeren)',
+  pitchInGoal: '{n} i målfeltet (tegnet inde i målet)',
+  pitchClipped: '{n} uden for banen (anden banestørrelse, ikke tegnet)',
+  pitchCap: '{n} ældste prikker over loftet på {max} (ikke tegnet)',
+  pitchDefLblWin: { session: '{n} af {l} i aften', week: '{n} af {l} i uge {w}', all: '{n} af {l} i alt' },
+  pitchZoneNoneWin: { session: 'ingen stedfæstede indkasseringer i aften', week: 'ingen stedfæstede indkasseringer i ugen', all: 'ingen stedfæstede indkasseringer endnu' },
   diceTitle: 'Tilfældig træningsbane', diceBtn: 'Træk en bane',
   diceMeta: 'trukket blandt {n} baner', diceErr: 'Kunne ikke trække — er serveren vågen?',
   /* Simpelt handlingssprog på fokus-fladerne (K4W 13/8). Kun ordlyd — målet
@@ -3651,6 +3693,8 @@ function updateSapiBanner(){
   }
   el.textContent = txt || '';
   el.classList.toggle('on', !!txt);
+  /* Boardet: chippen (fullscreen-vagten) rykker ned under varslet, se CSS. */
+  const ov = $('ovfsbanner'); if (ov) ov.classList.toggle('stacked', !!txt);
 }
 
 /* Update-kortet (14/8): klik = åbn release-siden; ✕ = tavshed for netop denne
@@ -6964,6 +7008,16 @@ function pitchInit(){
    * baere de maettede originaler. */
   const W_MINE = '#3FE8D0', W_OPPS = '#FFB255';
   const st = { mine: true, opps: true, scored: true, conceded: true, heat: false, zones: true };
+  /* Vinduet (8/9, tester-feedback 7/9: "opened every day for 3 days and it just
+   * kept getting added to so it's just like a coloured blob"): session · uge ·
+   * alt, uge som standard — de samme kampfiler som radarens zoner, saa prikker
+   * og zoner altid taeller det samme. Valget huskes i localStorage. Serveren
+   * svarer med `window.kind`; et aeldre server-svar uden feltet er hele
+   * arkivet og maerkes saadan i linjen under kortet (aldrig gaettet). */
+  const WIN_LS = 'rlls.pitchWin.v1', WINS = ['session', 'week', 'all'];
+  let win = 'week';
+  try{ const v = localStorage.getItem(WIN_LS); if (WINS.includes(v)) win = v; }catch{}
+  const winKindOf = p => p && p.window && WINS.includes(p.window.kind) ? p.window.kind : 'all';
   const TOGGLES = [
     ['mine', T.pitchMine, 'background:' + C_MINE],
     ['opps', T.pitchOpps, 'background:' + C_OPPS],
@@ -6974,11 +7028,23 @@ function pitchInit(){
     ['zones', T.pitchZones, 'background:linear-gradient(90deg,rgba(248,81,73,.85),rgba(53,208,140,.85))']
   ];
   const togglesEl = document.getElementById('pitchToggles');
-  togglesEl.innerHTML = TOGGLES.map(t =>
+  /* Vindue-vaelgeren staar FOERST som een segmenteret kontakt (praecis eet valg
+   * er trykket); lag-kontakterne er til/fra-knapper som foer. */
+  togglesEl.innerHTML = '<span class="pitchwin" role="group" aria-label="' + esc(T.pitchWinGroup) + '">'
+    + WINS.map(w => '<button type="button" data-w="' + w + '" aria-pressed="' + String(w === win) + '">' + esc(T.pitchWin[w]) + '</button>').join('')
+    + '</span>' + TOGGLES.map(t =>
     '<button type="button" data-k="' + t[0] + '" aria-pressed="true"><span class="sw" style="' + t[2] + '"></span>' + t[1] + '</button>').join('');
   if (!st.heat){ const hb = togglesEl.querySelector('[data-k=heat]'); hb.classList.add('off'); hb.setAttribute('aria-pressed', 'false'); }
   togglesEl.addEventListener('click', e => {
     const b = e.target.closest('button'); if (!b) return;
+    if (b.dataset.w){
+      if (!WINS.includes(b.dataset.w) || b.dataset.w === win) return;
+      win = b.dataset.w;
+      try{ localStorage.setItem(WIN_LS, win); }catch{}
+      for (const x of togglesEl.querySelectorAll('.pitchwin button')) x.setAttribute('aria-pressed', String(x.dataset.w === win));
+      load();
+      return;
+    }
     const k = b.dataset.k;
     st[k] = !st[k];
     b.classList.toggle('off', !st[k]);
@@ -7010,6 +7076,28 @@ function pitchInit(){
    * D spejlet i laengdeaksen. THIRD/POST er kontraktens konstanter. */
   const THIRD = 5120 / 3, POST = 893;
   const weekNo = key => String(key || '').replace(/^\d+-W0*/, '');   // '2026-W37' -> '37'
+  /* Hvor et punkt hoerer hjemme paa standard-tegningen (8/9, tester-feedback
+   * 7/9: "goals scored from outside of the field boundary"): 'field' = inde i
+   * oktagonen; 'goal' = bag maallinjen mellem stolperne (bolden i maalmunden —
+   * tegnes INDE i det tegnede maal, dybden klemt til det tegnede net og
+   * bredden til stolperne); 'out' = uden for begge, dvs. en anden
+   * banestoerrelse (Rocket Labs, 4v4-arenaen): tegnes ikke, taelles i linjen
+   * under kortet. Hjoernerne er skaaret 1152 uu i begge akser, saa oktagonens
+   * kant er |x| + |y| <= 4096 + 5120 - 1152. Ingen position opfindes: et
+   * klemt punkt siger stadig "i maalet", og et udeladt punkt staar som tal. */
+  const GOAL_Y = 5120, GOAL_DEPTH = 5500, WALL = 4096, CUT = 1152, MARGIN = 60;
+  function placeOf(x, y){
+    const ax = Math.abs(x), ay = Math.abs(y);
+    if (ay <= GOAL_Y) return ax <= WALL && ax + ay <= WALL + GOAL_Y - CUT ? 'field' : 'out';
+    return ax <= POST ? 'goal' : 'out';
+  }
+  function pxOf(x, y){
+    if (Math.abs(y) > GOAL_Y){
+      y = (y < 0 ? -1 : 1) * Math.min(Math.abs(y), GOAL_DEPTH - MARGIN);
+      x = Math.max(-(POST - MARGIN), Math.min(POST - MARGIN, x));
+    }
+    return [PL(y), PW(x)];
+  }
   function zoneRect(id){
     const m = /^([DO])([1-6])$/.exec(String(id || '')); if (!m) return null;
     const own = m[1] === 'D', k = Number(m[2]);
@@ -7024,28 +7112,39 @@ function pitchInit(){
     else wid = span(Tp, Bp);
     return { x: len.lo, y: wid.lo, w: len.hi - len.lo, h: wid.hi - wid.lo };
   }
-  /* Linjen under radaren (7/9, §6): ugens indkasseringer pr. zone som TAL,
+  /* Vinduets ord til linjerne: 'uge 37', 'seneste session', 'alle kampe'. */
+  const winLabel = p => {
+    const kind = winKindOf(p);
+    if (kind !== 'week') return T.pitchWinLbl[kind];
+    const w = weekNo(p.window && p.window.key);
+    return w ? T.pitchWinLbl.week.replace('{w}', w) : T.pitchWin.week;
+  };
+  /* Linjen under radaren (7/9, §6): vinduets indkasseringer pr. zone som TAL,
    * derefter chips. Siderne (D3/D4) slaas sammen til 'fra siden' — venstre/
    * hoejre naevnes aldrig foer orienteringen er set i spillet. Tegnes ogsaa
-   * uden trin B (kun taellinger); uden radar-blok er linjen tom. */
+   * uden trin B (kun taellinger); uden radar-blok er linjen tom. Vinduet
+   * (8/9) staar i parentes efter tallene: '(uge 37)', '(seneste session)'. */
   const radarEl = document.getElementById('pitchRadar');
-  function radarLine(rd){
+  function radarLine(rd, p){
     if (!radarEl) return;
     if (!rd || !rd.week){ radarEl.innerHTML = ''; return; }
     const fmt = n => Number(n || 0).toLocaleString(LANG === 'en' ? 'en-GB' : 'da-DK');
+    const kind = winKindOf(p);
     const wk = rd.week, z = wk.zones || {};
     const n = id => (z[id] && z[id].n) || 0;
     const parts = [[n('D5'), T.pitchZ.D5], [n('D1'), T.pitchZ.D1], [n('D3') + n('D4'), T.pitchZ.side], [n('D2'), T.pitchZ.D2], [n('D6'), T.pitchZ.D6]]
       .filter(q => q[0] > 0).sort((a, b) => b[0] - a[0]).map(q => '<span class="num">' + fmt(q[0]) + '</span> ' + esc(q[1]));
     if (wk.ko) parts.push(esc(T.pitchKo.replace('{n}', fmt(wk.ko))));
-    const excl = ((rd.excluded && rd.excluded.private) || 0) + ((rd.excluded && rd.excluded.mutators) || 0);
+    // udeladt = privat + mutator + anden banestoerrelse (8/9): alle tre er talt, ingen af dem tegnet som skudsted
+    const ex = rd.excluded || {};
+    const excl = (ex.private || 0) + (ex.mutators || 0) + (ex.arena || 0);
     if (excl) parts.push(esc(T.pitchExcl.replace('{n}', fmt(excl))));
     // 'ikke stedfaestet' = maal uden x (noX) + maal uden bundet beroering (unbound): begge er talt, ingen af dem gaettet
     const noLoc = (wk.noX || 0) + (rd.unbound || 0);
     if (noLoc) parts.push(esc(T.pitchNoX.replace('{n}', fmt(noLoc))));
-    const wkNo = weekNo(wk.key);
-    let html = '<span class="num">' + esc(T.pitchConcFrom) + '</span>' + (parts.length ? parts.join(' · ') : esc(T.pitchZoneNone))
-      + (wkNo ? ' <span class="num">(' + esc((LANG === 'en' ? 'week ' : 'uge ') + wkNo) + ')</span>' : '') + '<br>';
+    const sfx = kind === 'week' ? (weekNo(wk.key) ? T.pitchWinLbl.week.replace('{w}', weekNo(wk.key)) : '') : T.pitchWinLbl[kind];
+    let html = '<span class="num">' + esc(T.pitchConcFrom) + '</span>' + (parts.length ? parts.join(' · ') : esc(T.pitchZoneNoneWin[kind] || T.pitchZoneNone))
+      + (sfx ? ' <span class="num">(' + esc(sfx) + ')</span>' : '') + '<br>';
     if (!rd.orientationVerified) html += '<span class="chip warn">' + esc(T.pitchOrient) + '</span>';
     const mk = rd.marked || {};
     if (mk.fromWeek) html += '<span class="chip">' + esc(T.pitchFromWeek.replace('{w}', weekNo(mk.fromWeek))) + '</span>';
@@ -7068,10 +7167,24 @@ function pitchInit(){
     const PITCH_D = 'M' + (L + cutL) + ' ' + Tp + ' H' + (R - cutL) + ' L' + R + ' ' + (Tp + cutW)
       + ' V' + (Bp - cutW) + ' L' + (R - cutL) + ' ' + Bp + ' H' + (L + cutL) + ' L' + L + ' ' + (Bp - cutW)
       + ' V' + (Tp + cutW) + ' Z';
-    s += '<defs><clipPath id="pitchClip"><path d="' + PITCH_D + '"/></clipPath></defs>';
+    /* Maalenes rektangler (8/9): de er de eneste flader uden for oktagonen, og
+     * prikker/maerker i maalmunden klippes til dem — aldrig ud i det tomme. */
+    const goalL = { x: PL(-5500), y: 220 - GHW, w: L - PL(-5500), h: GHW * 2 };
+    const goalR = { x: R, y: 220 - GHW, w: PL(5500) - R, h: GHW * 2 };
+    const goalRects = '<rect x="' + goalL.x + '" y="' + goalL.y + '" width="' + goalL.w + '" height="' + goalL.h + '"/>'
+      + '<rect x="' + goalR.x + '" y="' + goalR.y + '" width="' + goalR.w + '" height="' + goalR.h + '"/>';
+    s += '<defs><clipPath id="pitchClip"><path d="' + PITCH_D + '"/></clipPath>'
+       + '<clipPath id="pitchClipGoals"><path d="' + PITCH_D + '"/>' + goalRects + '</clipPath></defs>';
     /* Banebunden: EEN flade i banens egen form, saa den laeses som asfalt
      * frem for som et hul i kortet. */
     s += '<path d="' + PITCH_D + '" fill="rgba(9,17,30,.55)"/>';
+    /* Toning pr. kamp (8/9): 'alt' over hundreder af kampe maa ikke blive en
+     * klat. Prikkerne toner med kvadratroden af kampantallet (25 kampe = fuld
+     * styrke, 100 = halv); heatmappets kugler bliver svagere pr. kamp, saa
+     * taetheden faar sit spaend tilbage i stedet for at maette overalt. */
+    const nMatch = Math.max(1, p.matches || 1);
+    const tone = Math.min(1, Math.sqrt(25 / Math.max(25, nMatch)));
+    const heatA = Math.max(.04, .28 * Math.min(1, 12 / Math.max(12, nMatch)));
     if (!st.heat){
       /* baand: mine (teal) og modstandere (amber) oveni hinanden — blandingen
        * viser omstridte zoner. Maalzone-buckets klippes til maalmundens bredde.
@@ -7083,12 +7196,6 @@ function pitchInit(){
       s += '<g clip-path="url(#pitchClip)" style="mix-blend-mode:screen">';
       const mine = sel ? p.layers.mine[sel - 1] : p.mine;
       const opps = sel ? p.layers.opps[sel - 1] : p.opps;
-      /* Skalaen er ROBUST, ikke maksimal. Kickoff-punktet er den samme plet i
-       * hver eneste kamp, saa dets bucket er mange gange stoerre end alle
-       * andre. Normaliseret mod max blev det ene bucket 100 % og HELE resten
-       * af banen naesten usynlig — to skarpe striber midt paa en tom flade.
-       * 92-percentilen lader det topbucket klippe (det er stadig det
-       * kraftigste) og giver resten af banen sit spaend tilbage. */
       const both = st.mine && st.opps;
       /* Skalaen er ROBUST, ikke maksimal. Kickoff-punktet er den samme plet i
        * hver eneste kamp, saa dets bucket er mange gange stoerre end alle
@@ -7136,20 +7243,23 @@ function pitchInit(){
       s += '</g>';
       /* prikker (kampe optaget efter 26/8): [x, y, hvem, minut] — hvem:
        * 0=mine, 1=medspillere, 2=modstandere; minut -1 = uden kampur.
-       * Ogsaa klippet: en beroering i maalmunden laa foer uden for banen.
+       * Klippet til oktagonen + maalene: en beroering i maalmunden ligger inde
+       * i det tegnede maal (8/9), en fra en anden banestoerrelse tegnes ikke.
        * Medspillerne males FOERST, saa dine egne og modstandernes ligger
        * oeverst — kontekst under identitet. */
-      s += '<g clip-path="url(#pitchClip)">';
+      s += '<g clip-path="url(#pitchClipGoals)">';
       const dots = (p.dots || []).filter(d => inMin(d[3])
         && !(d[2] === 0 && !st.mine) && !(d[2] === 2 && !st.opps));
       for (const d of dots.slice().sort((a, b) => (a[2] === 1 ? 0 : 1) - (b[2] === 1 ? 0 : 1))){
+        if (placeOf(d[0], d[1]) === 'out') continue;
         const c = d[2] === 0 ? C_MINE : d[2] === 1 ? '#5F7191' : C_OPPS;
+        const q = pxOf(d[0], d[1]);
         /* r 2,6 med en 1 px ring i fladens farve: ringen er det, der holder
          * to overlappende beroeringer fra at smelte til een klat — ikke en
          * kontur tegnet for konturens skyld. Medspillerne baerer ingen ring;
          * de er baggrund og maa gerne smelte sammen. */
-        s += '<circle cx="' + PL(d[1]).toFixed(1) + '" cy="' + PW(d[0]).toFixed(1) + '" r="2.3" fill="' + c + '"'
-           + (d[2] === 1 ? ' opacity=".42"' : ' opacity=".85" stroke="rgba(7,13,24,.85)" stroke-width=".9"') + '/>';
+        s += '<circle cx="' + q[0].toFixed(1) + '" cy="' + q[1].toFixed(1) + '" r="2.3" fill="' + c + '"'
+           + (d[2] === 1 ? ' opacity="' + (.42 * tone).toFixed(2) + '"' : ' opacity="' + (.85 * tone).toFixed(2) + '" stroke="rgba(7,13,24,.85)" stroke-width=".9"') + '/>';
       }
       s += '</g>';
     } else {
@@ -7164,22 +7274,27 @@ function pitchInit(){
       const cx = v => v / 620 * W, cy = v => v / 440 * H;    // viewBox -> canvas
       ctx.clearRect(0, 0, W, H);
       ctx.save();
-      ctx.beginPath();                                        // klip til banens oktagon
+      ctx.beginPath();                                        // klip til banens oktagon + de to maal (8/9)
       ctx.moveTo(cx(L + cutL), cy(Tp)); ctx.lineTo(cx(R - cutL), cy(Tp));
       ctx.lineTo(cx(R), cy(Tp + cutW)); ctx.lineTo(cx(R), cy(Bp - cutW));
       ctx.lineTo(cx(R - cutL), cy(Bp)); ctx.lineTo(cx(L + cutL), cy(Bp));
       ctx.lineTo(cx(L), cy(Bp - cutW)); ctx.lineTo(cx(L), cy(Tp + cutW));
-      ctx.closePath(); ctx.clip();
+      ctx.closePath();
+      ctx.rect(cx(goalL.x), cy(goalL.y), cx(goalL.w), cy(goalL.h));
+      ctx.rect(cx(goalR.x), cy(goalR.y), cx(goalR.w), cy(goalR.h));
+      ctx.clip();
       const R2 = 12 * S;                                      // ~5 m paa banen
       for (const d of (p.dots || [])){
         if (!inMin(d[3])) continue;
         if (d[2] === 0 && !st.mine) continue;
         if (d[2] === 1) continue;
         if (d[2] === 2 && !st.opps) continue;
-        // samme pixel-afbildning som SVG'en: PW baerer spejlings-rettelsen (7/9) for begge grene
-        const bx = cx(PL(d[1])), by = cy(PW(d[0]));
+        if (placeOf(d[0], d[1]) === 'out') continue;
+        // samme pixel-afbildning som SVG'en: PW baerer spejlings-rettelsen (7/9) for begge grene, pxOf klemningen til maalet (8/9)
+        const q = pxOf(d[0], d[1]);
+        const bx = cx(q[0]), by = cy(q[1]);
         const g = ctx.createRadialGradient(bx, by, 0, bx, by, R2);
-        g.addColorStop(0, 'rgba(0,0,0,.28)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+        g.addColorStop(0, 'rgba(0,0,0,' + heatA.toFixed(3) + ')'); g.addColorStop(1, 'rgba(0,0,0,0)');
         ctx.fillStyle = g;
         ctx.fillRect(bx - R2, by - R2, R2 * 2, R2 * 2);
       }
@@ -7223,16 +7338,33 @@ function pitchInit(){
     /* skudsteder: groen = hvor du scorede fra, roed = hvor de scorede fra.
      * KUN maal med fuld position tegnes (brugerens dom 26/8: sidelinje-
      * histogrammerne for de gamle y-kun-maal virkede ikke visuelt — hellere
-     * faa praecise prikker der vokser for hver session end en stoejende krykke). */
+     * faa praecise prikker der vokser for hver session end en stoejende krykke).
+     * Et skudsted i maalmunden (bolden paa stregen) tegnes inde i maalet; et
+     * fra en anden banestoerrelse tegnes ikke og taelles (8/9). */
     const mark = (arr, col, on) => {
       if (!on) return;
       for (const g of (arr || [])){
         if (!inMin(g[2]) || g[0] === null) continue;
-        s += '<circle cx="' + PL(g[1]).toFixed(1) + '" cy="' + PW(g[0]).toFixed(1) + '" r="3.2" fill="' + col + '" stroke="rgba(5,8,14,.85)" stroke-width="1.2"/>';
+        if (placeOf(g[0], g[1]) === 'out') continue;
+        const q = pxOf(g[0], g[1]);
+        s += '<circle cx="' + q[0].toFixed(1) + '" cy="' + q[1].toFixed(1) + '" r="3.2" fill="' + col + '" stroke="rgba(5,8,14,.85)" stroke-width="1.2"/>';
       }
     };
+    s += '<g clip-path="url(#pitchClipGoals)">';
     mark(p.scoredFrom, C_GOOD, st.scored);
     mark(p.concededFrom, C_BAD, st.conceded);
+    s += '</g>';
+    /* Aerlighedstal til linjen under kortet (8/9): hvor mange punkter der
+     * ligger i maalfeltet (tegnet inde i maalet) og hvor mange der ligger uden
+     * for banen (ikke tegnet). Talt over ALLE prikker og skudsteder i svaret,
+     * uafhaengigt af kontakter og minut-slider, saa tallet ikke hopper naar
+     * man klikker. */
+    const tally = { goal: 0, out: 0 };
+    for (const d of (p.dots || [])){ const w = placeOf(d[0], d[1]); if (w !== 'field') tally[w]++; }
+    for (const arr of [p.scoredFrom, p.concededFrom]) for (const g of (arr || [])){
+      if (g[0] === null) continue;
+      const w = placeOf(g[0], g[1]); if (w !== 'field') tally[w]++;
+    }
     /* Zonerne (7/9, RADAR-DESIGN.md §6): de to markerede zoner fra serverens
      * radar-blok som halvgennemsigtige flader i SVG'ens egne koordinater —
      * dybdelinjer ved PL(±THIRD), breddelinjer ved PW(±POST). Tegnes KUN naar
@@ -7243,6 +7375,7 @@ function pitchInit(){
     if (st.zones && p.radar && p.radar.marked){
       const rd = p.radar, mk = rd.marked;
       const wkNo = weekNo(rd.week && rd.week.key);
+      const kind = winKindOf(p);
       const fmtN = n => Number(n || 0).toLocaleString(LANG === 'en' ? 'en-GB' : 'da-DK');
       s += '<g clip-path="url(#pitchClip)">';
       for (const fam of ['def', 'off']){
@@ -7251,8 +7384,9 @@ function pitchInit(){
         const col = fam === 'def' ? C_BAD : C_GOOD;
         s += '<rect x="' + r.x.toFixed(1) + '" y="' + r.y.toFixed(1) + '" width="' + r.w.toFixed(1) + '" height="' + r.h.toFixed(1)
            + '" fill="' + col + '" fill-opacity=".16" stroke="' + col + '" stroke-opacity=".55" stroke-width="1.2" stroke-dasharray="4 3"/>';
+        /* etiketten siger vinduet (8/9): 'i aften' / 'i uge N' / 'i alt' */
         let txt = fam === 'def'
-          ? T.pitchDefLbl.replace('{n}', fmtN(m.n)).replace('{l}', fmtN(m.located)).replace('{w}', wkNo)
+          ? (T.pitchDefLblWin[kind] || T.pitchDefLbl).replace('{n}', fmtN(m.n)).replace('{l}', fmtN(m.located)).replace('{w}', wkNo)
           : T.pitchOffLbl.replace('{g}', fmtN(m.goals)).replace('{t}', fmtN(m.touches));
         /* 'fra uge N' staar allerede som chip under radaren (week.key ER den talte uge),
          * saa etiketten i banen gentager det ikke (C3-review 7/9). */
@@ -7274,8 +7408,8 @@ function pitchInit(){
     s += '<path ' + o + ' d="' + PITCH_D + '"/>';
     /* Maalene ligger BAG baglinjen og er derfor med vilje uden for oktagonen —
      * de er de eneste flader der maa det. Ejerens farve, ikke retningens. */
-    s += '<rect x="' + PL(-5500) + '" y="' + (220 - GHW) + '" width="' + (L - PL(-5500)) + '" height="' + GHW * 2 + '" rx="1" fill="rgba(39,217,192,.09)" stroke="' + C_MINE + '" stroke-width="1.4" stroke-opacity=".75"/>';
-    s += '<rect x="' + R + '" y="' + (220 - GHW) + '" width="' + (PL(5500) - R) + '" height="' + GHW * 2 + '" rx="1" fill="rgba(255,158,44,.09)" stroke="' + C_OPPS + '" stroke-width="1.4" stroke-opacity=".75"/>';
+    s += '<rect x="' + goalL.x + '" y="' + goalL.y + '" width="' + goalL.w + '" height="' + goalL.h + '" rx="1" fill="rgba(39,217,192,.09)" stroke="' + C_MINE + '" stroke-width="1.4" stroke-opacity=".75"/>';
+    s += '<rect x="' + goalR.x + '" y="' + goalR.y + '" width="' + goalR.w + '" height="' + goalR.h + '" rx="1" fill="rgba(255,158,44,.09)" stroke="' + C_OPPS + '" stroke-width="1.4" stroke-opacity=".75"/>';
     /* Etiketterne stod i "Chakra Petch" — en font der hverken skibes eller er
      * installeret, saa de faldt til browserens standard-sans midt i en flade,
      * hvor alt andet er Archivo. Teksten baerer tekst-tokenet; identiteten
@@ -7293,13 +7427,27 @@ function pitchInit(){
     for (const z of zoneLabels)
       s += '<text x="' + z.x.toFixed(1) + '" y="' + (z.y + 3.5).toFixed(1) + '" text-anchor="middle" style="' + zl + 'fill:' + z.col + ';">' + esc(z.txt) + '</text>';
     svg.innerHTML = s;
-    radarLine(p.radar);
+    radarLine(p.radar, p);
+    /* Taellelinjen (8/9): vinduet foerst, saa kampe/beroeringer/prikker, maal,
+     * og en aerlighedslinje — i maalfeltet, uden for banen, over loftet, og
+     * 'serveren er aeldre end siden' naar svaret ikke baerer et vindue. */
     const statsEl = document.getElementById('pitchStats');
-    if (!p.touches){ statsEl.textContent = T.pitchEmpty; return; }
-    const fmt = n => n.toLocaleString(LANG === 'en' ? 'en-GB' : 'da-DK');
-    statsEl.innerHTML = '<span class="num">' + T.pitchStats.replace('{m}', fmt(p.matches)).replace('{t}', fmt(p.touches))
+    const fmt = n => Number(n || 0).toLocaleString(LANG === 'en' ? 'en-GB' : 'da-DK');
+    const kind = winKindOf(p), wl = winLabel(p);
+    if (!p.touches){
+      const noSession = kind === 'session' && !(p.window && p.window.session);
+      statsEl.innerHTML = '<span class="num">' + esc(wl) + '</span><br>' + esc(noSession ? T.pitchWinNone : T.pitchEmpty);
+      return;
+    }
+    const honest = [];
+    if (tally.goal) honest.push(T.pitchInGoal.replace('{n}', fmt(tally.goal)));
+    if (tally.out) honest.push(T.pitchClipped.replace('{n}', fmt(tally.out)));
+    if (p.dotsDropped) honest.push(T.pitchCap.replace('{n}', fmt(p.dotsDropped)).replace('{max}', fmt((p.dots || []).length)));
+    if (!p.window) honest.push(T.pitchWinOld);
+    statsEl.innerHTML = '<span class="num">' + esc(wl) + ' · ' + T.pitchStats.replace('{m}', fmt(p.matches)).replace('{t}', fmt(p.touches))
       + ' · ' + T.pitchDots.replace('{d}', fmt(p.withX)) + '</span><br>'
-      + T.pitchGoals.replace('{f}', fmt(p.goalsFor)).replace('{a}', fmt(p.goalsAgainst));
+      + T.pitchGoals.replace('{f}', fmt(p.goalsFor)).replace('{a}', fmt(p.goalsAgainst))
+      + (honest.length ? '<br><span class="pitchhonest">' + honest.map(esc).join(' · ') + '</span>' : '');
   }
   /* Tids-slideren: 1-5 = kampens minutter, 6 (hoejre ende, default) = hele
    * kampen. Genrenderer fra de allerede hentede lag — intet server-kald. */
@@ -7321,9 +7469,12 @@ function pitchInit(){
   }
   slider.addEventListener('input', paint);
   /* r.ok + formtjek: et JSON-svar der ikke er {mine,opps,layers} maa aldrig
-   * naa render() — dér laeses mine.length uden vagt (uncaught i rAF). */
-  const load = () => { if (!HTTP) return; fetch('/api/pitch').then(r => r.ok ? r.json() : null)
-    .then(p => { if (!p || !Array.isArray(p.mine) || !Array.isArray(p.opps) || !p.layers) return; lastData = p; paint(); }).catch(() => {}); };
+   * naa render() — dér laeses mine.length uden vagt (uncaught i rAF).
+   * Vinduet sendes med (8/9); et svar til et andet vindue end det valgte
+   * (bruger klikkede videre, mens et kald var i luften) smides vaek. */
+  const load = () => { if (!HTTP) return; const asked = win;
+    fetch('/api/pitch?window=' + encodeURIComponent(asked)).then(r => r.ok ? r.json() : null)
+    .then(p => { if (!p || !Array.isArray(p.mine) || !Array.isArray(p.opps) || !p.layers || asked !== win) return; lastData = p; paint(); }).catch(() => {}); };
   load();
   setInterval(load, 5 * 60e3);
   /* Panelet flytter kortet ind i #dockBody. SVG'en er procent-skaleret, men

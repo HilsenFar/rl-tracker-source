@@ -31,7 +31,23 @@
  * beroeringer taelles pr. angrebszone (mineZones), private lobbyer og
  * mutator-kampe holdes ude af radar-felterne (aldrig af tegningen), og
  * ubundne maal taelles i stedet for at gaettes. Tegningens felter
- * (mine/mates/opps/layers/dots) er uaendrede, byte for byte. */
+ * (mine/mates/opps/layers/dots) er uaendrede, byte for byte.
+ *
+ * Maal uden for banen (8/9, tester-feedback 7/9): tre ting maalt paa arkivet.
+ *  - Ingen standard-arena (ca. 600 kampe, 45 arenaer) har en beroering med
+ *    |x| > 4064 eller mere end EEN med |y| > 5300 pr. kamp. Labs_4v4_Arena15_*
+ *    (4v4), Labs_Galleon_Mast_P, Labs_PillarWings_P og ShatterShot_P har
+ *    beroeringer jaevnt fordelt op til |y| 6028 og |x| 4976 uden kobling til
+ *    maal-ure: de baner er STOERRE end standardbanen, og et skudsted derfra kan
+ *    ikke laegges paa standard-tegningen. Saadanne kampe holdes ude af
+ *    radar-felterne som private og mutator-kampe og taelles i excluded.arena
+ *    (arenaFits: navn ELLER geometri, saa en ukendt bane fanges ogsaa).
+ *  - En beroering med |y| > NET_Y (5300) paa en standard-arena er bolden i
+ *    nettet EFTER maalet (bolden er talt ved 5213 = 5120 + radius): aldrig et
+ *    skudsted. bindGoal springer den over, saa scorerens forrige beroering i
+ *    vinduet vinder — eller maalet er ubundet.
+ *  - 5120 < |y| <= 5300 er bolden paa stregen (16 af 2058 maal i arkivet, alle
+ *    5121-5276): et aegte sidste touch, som siden tegner INDE i maalet. */
 'use strict';
 const fs = require('fs');
 const path = require('path');
@@ -57,6 +73,18 @@ const OT_MINUTE = 4;
 const BIND_WINDOW_S = 10;      // skudsted = scorerens beroering hoejst 10 s foer maalet
 const KICKOFF_GAP_S = 5;       // >= 5 s stilhed paa vaegur foer en t==clock-beroering = kickoffet efter maalet
 const OT_TURN_MAX_PREV = 10;   // OT taeller op fra 0: en stigning fra t > 10 er aldrig OT-starten (alle 63 OT-kampe i arkivet: prev = 0)
+/* Banens geometri (8/9). GOAL_Y = maallinjen (RLBot: ±5120); NET_Y = dybere end
+ * ~2 boldradier bag stregen — bolden er talt som maal ved 5213, saa en beroering
+ * dybere end 5300 sker EFTER maalet (nettet gaar til 6000); WALL_X = sidevaeggen.
+ * Maalt paa arkivet: standard-arenaer topper i 5376 (een beroering) og 4064. */
+const GOAL_Y = 5120;
+const NET_Y = 5300;
+const WALL_X = 4096;
+const ARENA_NET_MIN = 3;       // >= 3 net-beroeringer i EEN kamp = en laengere bane (standard: hoejst 1 pr. kamp)
+/* Baner med en anden geometri end standardbanen, paa navn: Rocket Labs
+ * (Labs_ — herunder 4v4's Labs_4v4_Arena15_) og ShatterShot_P (|x| til 4976
+ * i arkivet). Geometrien i arenaFits fanger dem ogsaa uden navn. */
+const ARENA_OTHER = /^(Labs_|ShatterShot_P$)/i;
 
 /* Spilledoegn 06:00 -> 06:00 lokal, samme regel som weekly.playDay (og
  * form.js). Kopieret frem for at traekke hele weekly.js (rapporter, stemme,
@@ -83,7 +111,7 @@ function emptyAggregate(){
             * excluded = kampe holdt ude af radar-felterne (privat/mutator);
             * unbound = mine/deres maal der ikke kunne stedfaestes. */
            scoredFrom: [], concededFrom: [],
-           mineZones: zoneCounts(), excluded: { private: 0, mutators: 0 }, unbound: 0 };
+           mineZones: zoneCounts(), excluded: { private: 0, mutators: 0, arena: 0 }, unbound: 0 };
 }
 
 /* Kampens kickoff: indekset paa den FOERSTE beroering med kampens hoejeste t.
@@ -162,6 +190,8 @@ const numW = e => typeof e.w === 'number' ? e.w : -Infinity;
  *      og vaagner paa praecis maalets sekund). Blandt resten vinder HOEJESTE w
  *      = den sidste beroering foer maalet. Uden w (ingen i arkivet, men
  *      aeldre adaptere kunne) falder valget tilbage paa laveste t som foer.
+ * En beroering med |y| > NET_Y (bolden i nettet efter maalet) er aldrig en
+ * kandidat (8/9): scorerens forrige beroering i vinduet vinder i stedet.
  * Ordinaer tid er begraenset til foer vendepunktet fordi OT's t-vaerdier ogsaa
  * findes i ordinaer tid — ellers vandt en OT-beroering (hoejest w) et
  * ordinaert maal med lavt ur. Uden x (digests foer 26/8) doemmes naerhed til
@@ -173,7 +203,7 @@ function bindGoal(g, hits, turn){
   let best = null;
   if (typeof g.w === 'number'){
     for (const e of hits){
-      if (e.name !== scorer || typeof e.w !== 'number') continue;
+      if (e.name !== scorer || typeof e.w !== 'number' || inNet(e)) continue;
       if (e.w > g.w || g.w - e.w > BIND_WINDOW_S) continue;
       if (!best || e.w > best.w) best = e;
     }
@@ -183,7 +213,7 @@ function bindGoal(g, hits, turn){
     if (turn < 0) return null;
     for (let i = turn; i < hits.length; i++){
       const e = hits[i];
-      if (e.name !== scorer || typeof e.t !== 'number') continue;
+      if (e.name !== scorer || typeof e.t !== 'number' || inNet(e)) continue;
       if (e.t > g.clock || g.clock - e.t > BIND_WINDOW_S) continue;
       if (!best || e.t > best.t || (e.t === best.t && numW(e) > numW(best))) best = e;
     }
@@ -191,7 +221,7 @@ function bindGoal(g, hits, turn){
     const end = turn >= 0 ? turn : hits.length;
     for (let i = 0; i < end; i++){
       const e = hits[i];
-      if (e.name !== scorer || typeof e.t !== 'number') continue;
+      if (e.name !== scorer || typeof e.t !== 'number' || inNet(e)) continue;
       if (e.t < g.clock || e.t - g.clock > BIND_WINDOW_S) continue;
       if (e.t === g.clock){
         const nearCentre = typeof e.y === 'number' && Math.abs(e.y) < radar.CENTER_R
@@ -238,6 +268,22 @@ function isKickoffTouch(hit, scorer, kickoffs){
     && typeof k.speed === 'number' && k.speed === hit.spd) ? 1 : 0;
 }
 
+/* Passer kampens bane paa standard-tegningen? Nej naar arenaen hedder
+ * Labs_… eller ShatterShot_P, naar en beroering ligger uden for sidevaeggen,
+ * eller naar mindst ARENA_NET_MIN beroeringer ligger dybere end NET_Y (en
+ * standard-kamp har hoejst een net-beroering; Arena15-kampe har 20-30). Rent. */
+function arenaFits(d, hits){
+  if (d && typeof d.arena === 'string' && ARENA_OTHER.test(d.arena)) return false;
+  let net = 0;
+  for (const e of hits || []){
+    if (!e) continue;
+    if (typeof e.x === 'number' && Math.abs(e.x) > WALL_X) return false;
+    if (typeof e.y === 'number' && Math.abs(e.y) > NET_Y && ++net >= ARENA_NET_MIN) return false;
+  }
+  return true;
+}
+const inNet = e => typeof e.y === 'number' && Math.abs(e.y) > NET_Y;   // bolden i nettet efter maalet: aldrig et skudsted
+
 /* Eet digests bidrag til aggregatet, eller null naar kampen ikke taeller.
  * Rent: ingen I/O. `dots` er UDEN loft her — loftet haandhaeves i fold(). */
 function contribution(d, owner){
@@ -257,16 +303,19 @@ function contribution(d, owner){
   const c = { touches: 0, withX: 0, mine: mk(), mates: mk(), opps: mk(),
               layers: { mine: mk6(), mates: mk6(), opps: mk6() },
               goalsFor: 0, goalsAgainst: 0, dots: [], scoredFrom: [], concededFrom: [],
-              mineZones: zoneCounts(), excluded: { private: 0, mutators: 0 }, unbound: 0 };
+              mineZones: zoneCounts(), excluded: { private: 0, mutators: 0, arena: 0 }, unbound: 0 };
   /* Radar-felterne (skudsteder, egne zoner, ubundne) holdes ude for private
    * lobbyer og mutator-kampe: en privat lobby er ikke ranked-populationen, og
    * med ubegraenset boost skydes der fra steder man aldrig naar i en rigtig
    * kamp. Tegningen (mine/mates/opps/layers/dots) taeller dem stadig, som
    * den altid har gjort. Een aarsag pr. kamp: privat foerst, saa excluded
-   * summerer til antal udeladte kampe. */
+   * summerer til antal udeladte kampe. Baner med en anden geometri (8/9,
+   * arenaFits) holdes ude paa samme maade: privat foerst, saa mutator, saa bane. */
   const isPrivate = M.privacyOf(d).private === true;
-  const radarOut = isPrivate || M.mutatorsOf(d, me).length > 0;
-  if (radarOut) c.excluded[isPrivate ? 'private' : 'mutators'] = 1;
+  const isMutator = M.mutatorsOf(d, me).length > 0;
+  const arenaOut = !arenaFits(d, hits);
+  const radarOut = isPrivate || isMutator || arenaOut;
+  if (radarOut) c.excluded[isPrivate ? 'private' : isMutator ? 'mutators' : 'arena'] = 1;
   for (const e of hits){
     if (typeof e.y !== 'number') continue;
     c.touches++;
@@ -325,6 +374,7 @@ function addRadar(out, c){
   for (const z of Object.keys(out.mineZones)) out.mineZones[z] += (c.mineZones && c.mineZones[z]) || 0;
   out.excluded.private += (c.excluded && c.excluded.private) || 0;
   out.excluded.mutators += (c.excluded && c.excluded.mutators) || 0;
+  out.excluded.arena += (c.excluded && c.excluded.arena) || 0;
   out.unbound += c.unbound || 0;
 }
 
@@ -332,7 +382,7 @@ function addRadar(out, c){
  * (contributionsFor) og ikke skal baere 44-bucket-lagene rundt. */
 function foldEntries(contribs){
   const out = { matches: 0, goalsFor: 0, goalsAgainst: 0, scoredFrom: [], concededFrom: [],
-                mineZones: zoneCounts(), excluded: { private: 0, mutators: 0 }, unbound: 0 };
+                mineZones: zoneCounts(), excluded: { private: 0, mutators: 0, arena: 0 }, unbound: 0 };
   for (const c of contribs){
     if (!c) continue;
     out.matches++;
@@ -447,5 +497,6 @@ function contributionsFor(dir, files, owner){
 }
 
 module.exports = { aggregate, reset, contribution, fold, foldFiles, foldEntries, contributionsFor,
-                   listFiles, emptyAggregate, bindGoal, otTurn, liveFrom, playDay, isKickoffTouch,
-                   PITCH_BUCKETS, PITCH_SPAN, PITCH_DOTS_MAX, BIND_WINDOW_S, KICKOFF_GAP_S, OT_TURN_MAX_PREV, OT_MINUTE, CACHE_MAX };
+                   listFiles, emptyAggregate, bindGoal, otTurn, liveFrom, playDay, isKickoffTouch, arenaFits,
+                   PITCH_BUCKETS, PITCH_SPAN, PITCH_DOTS_MAX, BIND_WINDOW_S, KICKOFF_GAP_S, OT_TURN_MAX_PREV, OT_MINUTE, CACHE_MAX,
+                   GOAL_Y, NET_Y, WALL_X, ARENA_NET_MIN, ARENA_OTHER };
