@@ -1,6 +1,6 @@
 @echo off
 rem TESTVERSION: pakker dine kamp-data til feedback (ingen noegler, intet sendes automatisk).
-cd /d "%~dp0.."
+cd /d "%~dp0..data"
 echo.
 echo  RL Tracker - feedback-eksport (testversion)
 echo  Pakker: kampe, rapporter, profil og indstillinger.

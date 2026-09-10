@@ -38,14 +38,41 @@ const LAN_OPEN = HOST !== '127.0.0.1' && HOST !== 'localhost' && HOST !== '::1';
  * release. It is never set in the shipped launchers, and the server still only
  * listens on loopback, so it opens nothing. */
 const isSea = (() => { try{ return require('node:sea').isSea(); }catch{ return false; } })();
-let ROOT = process.env.RL_ROOT || __dirname;
-if (isSea && !process.env.RL_ROOT) ROOT = path.dirname(process.execPath);
+/* Mappestruktur (9/9-2026, installeren). Under SEA kan pakken ligge i to former:
+ *   NY:      <base>\RLTrackerServer.exe + RLTracker.exe (launcher) + RLOverlay.exe
+ *            <base>\app\   siden, ds.css, motoren (director\), rank-emblemerne (ranks\)
+ *            <base>\data\  ALT runtime: profile, matches, reports, noegler, overlay-filer
+ *   LEGACY:  alt i én mappe (Portable-zip'en til og med v2026.09.08).
+ * BASE = exe'ens mappe, APP = sidens/motorens filer, ROOT = data. Formen kendes
+ * paa app\RLLiveTracker.html. Under `node server.js` er APP repoet selv, og
+ * RL_ROOT peger data et andet sted hen (dev). Gamle datafiler i BASE flyttes
+ * ind i data\ ved foerste start (DATA_ENTRIES nedenfor), saa ejerens dist og
+ * en tester der installerer oven i sin Portable-mappe mister intet. */
+const BASE = isSea ? path.dirname(process.execPath) : __dirname;
+const NEW_LAYOUT = isSea && fs.existsSync(path.join(BASE, 'app', 'RLLiveTracker.html'));
+const APP = NEW_LAYOUT ? path.join(BASE, 'app') : BASE;
+let ROOT = process.env.RL_ROOT || (NEW_LAYOUT ? path.join(BASE, 'data') : BASE);
 /* Motoren (director/*.js + pack-katalogerne) indlæses fra DIR_ROOT, data fra
- * ROOT. Under SEA er det samme mappe. Under `node server.js` er det repoets
- * egen director/ — også med RL_ROOT sat (dev-fælden 25/8: motoren blev læst
- * fra dist/director, så en rettelse i repoet kørte aldrig). RL_DIRECTOR_DIR
- * overstyrer for den der vil pege et andet sted hen. */
-const DIR_ROOT = process.env.RL_DIRECTOR_DIR || (isSea ? ROOT : __dirname);
+ * ROOT. Under `node server.js` er det repoets egen director/ — også med RL_ROOT
+ * sat (dev-fælden 25/8: motoren blev læst fra dist/director, så en rettelse i
+ * repoet kørte aldrig). RL_DIRECTOR_DIR overstyrer for den der vil pege et
+ * andet sted hen. */
+const DIR_ROOT = process.env.RL_DIRECTOR_DIR || APP;
+const DATA_ENTRIES = ['profile.json', 'matches', 'reports', 'guests', 'rank-cache.json', 'session-state.json',
+  'weekly-state.json', 'rank-history.json', 'form-state.json', 'feedback.json', 'feedback-state.json',
+  'labels.json', 'labels-custom.json', 'director-ai.json', 'reach-state.json', 'psynet-auth.json',
+  'psynet-version.json', 'seed-baseline.json', 'overlay-pos.json', 'overlay-glass.json',
+  'overlay-glass-focus.json', 'overlay-status.json', 'overlay-webview', 'overlay-fra.txt',
+  'server.log', 'server.prev.log'];
+if (NEW_LAYOUT && !process.env.RL_ROOT){
+  try{ fs.mkdirSync(ROOT, { recursive: true }); }catch{}
+  for (const e of DATA_ENTRIES){
+    const from = path.join(BASE, e), to = path.join(ROOT, e);
+    if (!fs.existsSync(from) || fs.existsSync(to)) continue;
+    try{ fs.renameSync(from, to); console.log('[layout] flyttet ' + e + ' -> data\\'); }
+    catch(err){ console.log('[layout] kunne ikke flytte ' + e + ' til data\\: ' + String((err && err.code) || err)); }
+  }
+}
 const loadDirectorModule = name =>
   require('module').createRequire(path.join(DIR_ROOT, 'x.js'))(path.join(DIR_ROOT, 'director', name));
 const UA = 'GitatoRLTracker/1.0 (dexo.colt@gmail.com)';
@@ -468,6 +495,14 @@ const RS_IMAGES = process.env.RS_IMAGES_DIR
   : process.env.APPDATA
     ? path.join(process.env.APPDATA, 'bakkesmod', 'bakkesmod', 'data', 'RocketStats', 'RocketStats_images')
     : null;
+/* Bundled emblems (9/9-2026): ranks\<Tier_Name>.png ships WITH the app, so a
+ * machine without BakkesMod/RocketStats (the Ally, every tester) shows the
+ * real badges instead of the SVG stand-ins. The PNGs are the RocketStats TGAs
+ * run through tgaToPng once; the artwork is Epic's, used under the Epic Games
+ * Fan Content Policy (non-commercial, freely accessible app, disclaimer shown
+ * in the footer + README) — see ranks\CREDITS.txt. The RocketStats folder
+ * stays as a fallback for a name the bundle lacks. */
+const RANKS_DIR = path.join(DIR_ROOT, 'ranks');
 const imgCache = new Map();
 
 const CRC_TABLE = (() => {
@@ -536,13 +571,16 @@ function tgaToPng(buf){
   return pngEncode(w, h, px);
 }
 function rankImage(name){
-  if (!/^[A-Za-z_]{1,40}$/.test(name) || !RS_IMAGES) return null;
+  if (!/^[A-Za-z_]{1,40}$/.test(name)) return null;
   if (imgCache.has(name)) return imgCache.get(name);
   // misses are cached too (a null means "no such emblem"), and the name comes
   // off the wire — bound the map so a LAN client can't grow it without limit
   if (imgCache.size > 200) imgCache.clear();
   let png = null;
-  try{ png = tgaToPng(fs.readFileSync(path.join(RS_IMAGES, name + '.tga'))); }catch{}
+  try{ png = fs.readFileSync(path.join(RANKS_DIR, name + '.png')); }catch{}
+  if (!png && RS_IMAGES){
+    try{ png = tgaToPng(fs.readFileSync(path.join(RS_IMAGES, name + '.tga'))); }catch{}
+  }
   imgCache.set(name, png);
   return png;
 }
@@ -870,7 +908,7 @@ try{
  * besked på boardet, aldrig selv-opdatering. Anonymt kald; slås fra med
  * "updateCheck": false i director-ai.json eller UPDATE_CHECK=0.
  * Logik: director/update-check.js. */
-const APP_VERSION = '2026.09.08';
+const APP_VERSION = '2026.09.10';
 let updateCheck = null;
 try{
   let updOff = process.env.UPDATE_CHECK === '0';
@@ -2026,7 +2064,9 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === '/api/overlay'){
       /* Linux (6/9): samme svar, anden vaert — findOverlayLauncher() ovenfor
        * vaelger RLOverlay.exe (win32) eller Electron-vaerten i linux-overlay/. */
-      const launcher = findOverlayLauncher(process.platform, process.env, ROOT, fs.existsSync);
+      /* win32: RLOverlay.exe ligger ved siden af serverens exe (BASE), ikke i
+       * data\. Linux: den flade node-pakke, hvor ROOT er pakken selv. */
+      const launcher = findOverlayLauncher(process.platform, process.env, process.platform === 'win32' ? BASE : ROOT, fs.existsSync);
       const have = !!launcher;
       if (req.method === 'GET'){
         /* fullscreen (7/9): vaertens egen dom fra overlay-status.json — spillet
@@ -2135,14 +2175,17 @@ const server = http.createServer(async (req, res) => {
   }
   let rel = url.pathname === '/' || url.pathname === '/index.html' ? 'RLLiveTracker.html' : url.pathname.slice(1);
   try{ rel = decodeURIComponent(rel); }catch{ res.writeHead(400); return res.end(); }
-  // resolve first, then require the result to sit INSIDE ROOT. A bare
-  // startsWith(ROOT) also accepts a sibling like "rl-live-stats-backup".
+  // The page's own assets live in APP, the generated reports in ROOT (data) —
+  // the same folder in the legacy layout, two folders in the installed one.
+  // resolve first, then require the result to sit INSIDE that base. A bare
+  // startsWith(base) also accepts a sibling like "rl-live-stats-backup".
   // Holds even when the server is opened to the network with HOST=0.0.0.0.
-  const full = path.resolve(ROOT, rel);
+  const base = /^(reports|guests)([\\/]|$)/.test(rel) ? ROOT : APP;
+  const full = path.resolve(base, rel);
   // both checks matter: isPublic names what may be served, the prefix test
-  // makes sure a crafted path can't land outside ROOT (or in a sibling
-  // directory, which a bare startsWith(ROOT) would have allowed)
-  if (!isPublic(rel) || (full !== ROOT && !full.startsWith(ROOT + path.sep))){
+  // makes sure a crafted path can't land outside the base (or in a sibling
+  // directory, which a bare startsWith(base) would have allowed)
+  if (!isPublic(rel) || (full !== base && !full.startsWith(base + path.sep))){
     res.writeHead(404, { 'Content-Type': 'text/plain' });
     return res.end('Not found');
   }

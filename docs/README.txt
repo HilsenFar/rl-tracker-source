@@ -63,6 +63,18 @@ division + MMR) so you can read the lobby mid-match. Because the local feed
 has no rank data, badges use an **online lookup** via the companion server.
 Two sources, in order of preference:
 
+**The emblem artwork** (`ranks\*.png`) ships with the app since 9/9-2026, so the
+real Rocket League badges show on every machine — before that the server read
+them from the RocketStats BakkesMod plugin's folder, which only exists where
+BakkesMod is installed (the SVG shields are the fallback when a name is missing
+from both). The images are Epic's; they are used under the
+[Epic Games Fan Content Policy](https://legal.epicgames.com/en-US/epicgames/fan-art-policy)
+(free, non-commercial, freely accessible tool) with the required disclaimer in
+the board footer, `README.txt` and the Notes below. The files themselves come
+from the open-source plugin [RocketStats](https://github.com/Lyliya/RocketStats)
+(MIT) — converted TGA→PNG once with the server's own `tgaToPng`; see
+`ranks\CREDITS.txt`.
+
 ### Default: the gitato relay — since 18/8-2026
 
 Out of the box the companion server asks `https://collect.gitato.net/v1/rank`
@@ -264,3 +276,7 @@ lav min rapport"*. Pack-katalogerne følger med i `director\`-mappen.
 - Fields like boost/speed are only broadcast for your own team or when
   spectating (per the Stats API docs) — the table shows `–` when absent.
 - Unofficial tool; not affiliated with Psyonix or Epic Games.
+- Portions of the materials used are trademarks and/or copyrighted works of
+  Epic Games, Inc. All rights reserved by Epic. This material is not official
+  and is not endorsed by Epic. (Epic Games Fan Content Policy §1.10 — covers the
+  rank emblems in `ranks\`.)

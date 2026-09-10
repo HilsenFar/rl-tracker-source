@@ -888,12 +888,7 @@ body.board #focusbanner, body.overlay #focusbanner, body.rankview #focusbanner{d
   align-items:center; gap:10px}
 #sapibanner.on{display:flex}
 body.overlay #sapibanner{font-size:10.5px; padding:6px 9px; letter-spacing:.03em}
-/* Boardet (8/9): samme greb som overlay-chippen nedenfor — en plade i flowet
- * uden for #board blev klemt til 28×36 px (maalt 7/9), dvs. usynlig netop dér,
- * hvor et doedt feed er mest usynligt. Fast plads oeverst i midten; er chippen
- * ogsaa paa, rykker den ned under varslet (se body.board #ovfsbanner). */
-body.board #sapibanner{position:fixed; top:12px; left:50%; transform:translateX(-50%);
-  z-index:50; margin:0; width:max-content; max-width:90vw}
+/* Boardet: fast plads oeverst via #topstack (BOARD-STAKKEN nedenfor). */
 
 /* ── UPDATE-BANNER ─ versions-tjek (14/8): stille kort, aldrig et varsel —
  * en ny version er en nyhed, ikke et problem. Klik åbner download-siden;
@@ -920,17 +915,21 @@ body.board #sapibanner{position:fixed; top:12px; left:50%; transform:translateX(
   letter-spacing:.05em; line-height:1.45; align-items:center; gap:10px}
 #ovfsbanner.on{display:flex}
 body.overlay #ovfsbanner{display:none}
-/* Boardet er een 100vh-soejle (#board) og kender ikke elementer udenfor: en
- * chip i flowet blev klemt til 30 px (maalt 7/9). Dér ligger den som en pille
- * oeverst i midten, over boardet, uden at flytte paa noget. */
-body.board #ovfsbanner{position:fixed; top:12px; left:50%; transform:translateX(-50%);
-  z-index:50; margin:0; width:max-content; max-width:90vw}
-/* Begge paa: varslet (kraever en handling) staar oeverst, chippen under det.
- * Klassen saettes af updateSapiBanner() paa chippen SELV — en soeskende-vaelger
- * (#sapibanner.on ~ #ovfsbanner) blev ikke genberegnet, naar kun banneret
- * skiftede klasse (maalt 8/9 i en fane uden frames); det element der
- * skifter klasse, faar altid sin egen stil regnet om. */
-body.board #ovfsbanner.stacked{top:60px}
+
+/* ── BOARD-STAKKEN (8/9) ─ boardet er een 100vh-soejle (#board) og kender ikke
+ * elementer udenfor: plader i flowet blev klemt til ~30 px (chippen maalt 7/9,
+ * Stats-API-varslet 28×36 px). De tre (#sapibanner, #ovfsbanner, #updbanner)
+ * ligger derfor i #topstack: paa main og overlay er den usynlig (display:
+ * contents = boernene staar i flowet praecis som foer), paa boardet er den een
+ * fast soejle oeverst i midten, over boardet, uden at flytte paa noget.
+ * Raekkefoelgen er markup'ens: varsel, chip, update-kort. Slukkede plader
+ * fylder ikke, og et ombrudt banner skubber det naeste ned — ingen faste
+ * offsets pr. kombination. */
+#topstack{display:contents}
+body.board #topstack{display:flex; flex-direction:column; align-items:center; gap:12px;
+  position:fixed; top:12px; left:50%; transform:translateX(-50%); z-index:50;
+  width:max-content; max-width:90vw}
+body.board #topstack > div{margin:0}
 #updbanner .upd-x:focus-visible{opacity:1; box-shadow:var(--gt-focus-ring)}
 #updbanner a{color:inherit; text-decoration:none}
 body.overlay #updbanner{display:none}
@@ -3033,6 +3032,9 @@ try{ var _t = localStorage.getItem('rlls.theme.v1');
 <!-- PAUSE-SIGNALET (25/8): tilt-vagtens LIVE-skilt mellem kampene. -->
 <div id="pausecard"></div>
 
+<!-- BOARD-STAKKEN (8/9): de tre plader herunder. Usynlig paa main og overlay
+     (display:contents), een fast soejle oeverst i midten paa boardet. -->
+<div id="topstack">
 <!-- STATSAPI-BANNER (14/8): vagten mod spilopdateringers nulstilling af
      DefaultStatsAPI.ini. Tomt og skjult indtil vagten kræver en handling;
      males af updateSapiBanner() på `_statsapi`- og `_bridge`-events. -->
@@ -3045,6 +3047,7 @@ try{ var _t = localStorage.getItem('rlls.theme.v1');
 <!-- UPDATE-BANNER (14/8): dagligt versions-tjek mod releases-repoet;
      males af paintUpdBanner() på `_update`-events. -->
 <div id="updbanner" role="status"></div>
+</div>
 
 <!-- Det faste panel (10/8): ovenpå indholdet, aldrig i layoutflowet. Indholdet
      skiftes af de fire knapper; position og adfærd er ens for alle fire. -->
@@ -3343,6 +3346,7 @@ try{ var _t = localStorage.getItem('rlls.theme.v1');
 
 <footer>
   Unofficial companion tool — not affiliated with Psyonix or Epic Games.
+  Portions of the materials used are trademarks and/or copyrighted works of Epic Games, Inc. All rights reserved by Epic. This material is not official and is not endorsed by Epic.
 </footer>
 
 <script>
@@ -3693,8 +3697,6 @@ function updateSapiBanner(){
   }
   el.textContent = txt || '';
   el.classList.toggle('on', !!txt);
-  /* Boardet: chippen (fullscreen-vagten) rykker ned under varslet, se CSS. */
-  const ov = $('ovfsbanner'); if (ov) ov.classList.toggle('stacked', !!txt);
 }
 
 /* Update-kortet (14/8): klik = åbn release-siden; ✕ = tavshed for netop denne

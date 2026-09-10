@@ -32,7 +32,9 @@ function pickAsset(assets, platform){
   const list = Array.isArray(assets) ? assets : [];
   const by = rx => list.find(a => rx.test(String((a && a.name) || '')));
   if (platform !== 'win32') return by(/linux.*\.(zip|tar\.gz|tgz|AppImage)$/i) || null;
-  return by(/OPDATERING.*\.zip$/i) || by(/\.zip$/i) || null;
+  /* 9/9-2026: installeren (RL-Tracker-Setup*.exe) er Windows-vejen; zip'erne
+   * bliver som fallback for releases fra foer. */
+  return by(/Setup.*\.exe$/i) || by(/OPDATERING.*\.zip$/i) || by(/\.zip$/i) || null;
 }
 
 function cmpVersions(a, b){

@@ -1,17 +1,15 @@
 RL LIVE TRACKER
 ===============
 
-START:  Double-click  RLTrackerServer.exe
-        - the tracker opens in your browser by itself.
-        (Start-RL-Tracker.bat does the same and can be made a shortcut.)
+START:  Start menu > RL Tracker  (or the desktop icon)
+        - the tracker starts in the background and opens in your browser.
+STOP:   Start menu > Stop RL Tracker
+        (closing the browser tab does not stop it - it keeps recording)
 
-WINDOWS SMARTSCREEN (first launch):
- The exe is not code-signed, so Windows may show a blue box saying
- "Windows protected your PC" with "RLTrackerServer.exe" named as an
- unrecognised app. That is Windows' standard warning for ANY unsigned
- download - it is not a virus verdict. To run the tracker:
-   1. Click "More info"   (the small link under the text)
-   2. Click "Run anyway"  (the button that appears)
+WINDOWS SMARTSCREEN (when you ran the installer):
+ The installer is not code-signed, so Windows may show a blue box saying
+ "Windows protected your PC". That is Windows' standard warning for ANY
+ unsigned download - it is not a virus verdict. "More info" > "Run anyway".
  Windows remembers your choice - you will not be asked again.
 
 FIRST RUN (3 things):
@@ -21,22 +19,37 @@ FIRST RUN (3 things):
  2. Click YOUR OWN name in the player list during your first match -
     that is how the coach knows who you are.
  3. The tracker asks once: "Join the test round?" - yes means your
-    match reports (readable JSON/HTML in this folder, never keys) are
+    match reports (readable JSON/HTML in data\, never keys) are
     sent to the developer. No = nothing is EVER uploaded.
 
 THE FOLDER:
- vaerktoejer\   board for a second screen, overlay, desktop shortcut,
-                feedback export ("vaerktoejer" is Danish for "tools")
- docs\          documentation - for you and for your AI
- director\      the coach engine (leave it alone)
+ RLTracker.exe   start (this is what the Start menu shortcut runs)
+ data\           YOUR data: matches, reports, profile, settings, log
+ app\            the tracker itself (board, coach engine, rank emblems)
+ tools\          board for a second screen, overlay on/off, feedback export
+ docs\           documentation - for you and for your AI
 
- Your data (matches, reports, profile) stays in THIS folder. Nothing is
- uploaded unless you said yes to the test round - and you can read every
- file that gets sent (matches\ and reports\).
+ Your data stays in data\ on this PC, and an update never touches it.
+ Nothing is uploaded unless you said yes to the test round - and you can
+ read every file that gets sent (data\matches\ and data\reports\).
 
-DANSK: Dobbeltklik paa RLTrackerServer.exe - trackeren aabner selv i din
-browser. SmartScreen: klik "Flere oplysninger" og saa "Koer alligevel" -
-kun een gang. Foerste kamp: klik dit eget navn i spillerlisten. Du
-spoerges EEN gang om testrunden: ja = dine kamprapporter (laesbar
-JSON/HTML i denne mappe) sendes til udvikleren; nej = der uploades
-aldrig noget. Dokumentation: docs\.
+UPDATING:
+ Run the new RL-Tracker-Setup.exe on top of this one - it replaces app\
+ and keeps data\. The board tells you when a new version is out.
+
+RANK BADGES / LEGAL:
+ Portions of the materials used are trademarks and/or copyrighted works
+ of Epic Games, Inc. All rights reserved by Epic. This material is not
+ official and is not endorsed by Epic.
+ The rank emblems in app\ranks\ are Rocket League's own artwork, used
+ under the Epic Games Fan Content Policy (free, non-commercial tool). The
+ image files come from the open-source BakkesMod plugin RocketStats (MIT,
+ github.com/Lyliya/RocketStats) - see app\ranks\CREDITS.txt.
+
+DANSK: Start-menu > RL Tracker - trackeren starter i baggrunden og aabner
+selv i din browser; Start-menu > Stop RL Tracker lukker den igen.
+SmartScreen ved installationen: "Flere oplysninger" og saa "Koer alligevel"
+- kun een gang. Foerste kamp: klik dit eget navn i spillerlisten. Du
+spoerges EEN gang om testrunden: ja = dine kamprapporter (laesbar JSON/HTML
+i data\) sendes til udvikleren; nej = der uploades aldrig noget. Dine data
+ligger i data\ og roeres aldrig af en opdatering. Dokumentation: docs\.

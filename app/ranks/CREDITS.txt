@@ -1,0 +1,29 @@
+RANK EMBLEMS - ORIGIN AND TERMS
+================================
+
+The 23 PNG files in this folder are Rocket League's rank emblems
+(Unranked, Bronze I ... Supersonic Legend). The artwork belongs to
+Epic Games, Inc. / Psyonix.
+
+Legal basis: Epic Games Fan Content Policy
+  https://legal.epicgames.com/en-US/epicgames/fan-art-policy
+  "Fan Content" includes "Epic IP-related websites and apps that are
+  freely accessible to the public" (personal, non-commercial). This
+  tracker is free and licensed PolyForm Noncommercial. The policy's
+  required disclaimer (section 1.10) is shown in the board footer,
+  README.txt and README.md:
+
+  Portions of the materials used are trademarks and/or copyrighted
+  works of Epic Games, Inc. All rights reserved by Epic. This material
+  is not official and is not endorsed by Epic.
+
+  Section 1.11: the emblems are not altered (colours/design untouched;
+  only the file format changed from TGA to PNG).
+
+Image files: from the open-source BakkesMod plugin RocketStats by
+Lyliya (MIT), path bakkesmod/data/RocketStats/RocketStats_images/*.tga
+  https://github.com/Lyliya/RocketStats
+Converted once with the tracker server's own tgaToPng() (server.js),
+exported 9 September 2026 via /api/rankimg/<Tier_Name>.png.
+
+Not affiliated with Psyonix or Epic Games.
